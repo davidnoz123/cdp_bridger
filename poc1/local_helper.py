@@ -4,14 +4,15 @@ local_helper.py
 
 A deliberately tiny local helper POC using only the Python standard library.
 
-It demonstrates this flow:
+It demonstrates this SSE + POST flow:
 
 1. A fake target website is open in a Chrome profile that has a login cookie.
-2. A fake cloud server creates a high-level capture job.
-3. This helper polls the cloud server.
-4. The helper finds the target tab through Chrome DevTools Protocol on localhost.
-5. The helper captures visible page text through CDP.
-6. The helper uploads the captured text back to the fake cloud server.
+2. This helper opens an outbound SSE stream to the fake cloud server.
+3. A fake cloud server creates a high-level capture job.
+4. The server pushes that job to the helper over SSE.
+5. The helper finds the target tab through Chrome DevTools Protocol on localhost.
+6. The helper captures visible page text through CDP.
+7. The helper uploads the captured text back with an ordinary HTTP POST.
 
 Safety boundaries in this POC:
 - CDP is expected at http://127.0.0.1:9222 only.
@@ -45,9 +46,10 @@ import os
 import socket
 import struct
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Iterator
 
 CLOUD_BASE = "http://127.0.0.1:8001"
 CDP_BASE = "http://127.0.0.1:9222"
@@ -60,7 +62,7 @@ def log(msg: str) -> None:
 
 
 def http_json(url: str, timeout: float = 5.0) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": "nielsoln-local-helper-poc/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "nielsoln-local-helper-poc/0.2"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -73,11 +75,61 @@ def post_json(url: str, obj: dict, timeout: float = 10.0) -> Any:
         method="POST",
         headers={
             "Content-Type": "application/json; charset=utf-8",
-            "User-Agent": "nielsoln-local-helper-poc/0.1",
+            "User-Agent": "nielsoln-local-helper-poc/0.2",
         },
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
+
+
+def iter_sse_events(url: str) -> Iterator[tuple[str, str]]:
+    """
+    Yield (event_type, data_text) from a Server-Sent Events stream.
+
+    This tiny parser handles the subset we use here:
+      event: job
+      data: {...json...}
+
+    It ignores comments/heartbeats beginning with ':' and reconnects in main().
+    """
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "User-Agent": "nielsoln-local-helper-poc/0.2",
+        },
+    )
+
+    with urllib.request.urlopen(req, timeout=60) as response:
+        event_type = "message"
+        data_lines: list[str] = []
+
+        while True:
+            raw = response.readline()
+            if raw == b"":
+                raise RuntimeError("SSE stream ended")
+
+            line = raw.decode("utf-8").rstrip("\r\n")
+
+            if line == "":
+                if data_lines:
+                    yield event_type, "\n".join(data_lines)
+                event_type = "message"
+                data_lines = []
+                continue
+
+            if line.startswith(":"):
+                # heartbeat/comment
+                continue
+
+            if line.startswith("event:"):
+                event_type = line[len("event:"):].strip()
+                continue
+
+            if line.startswith("data:"):
+                data_lines.append(line[len("data:"):].lstrip())
+                continue
 
 
 class TinyWebSocket:
@@ -271,34 +323,52 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def handle_sse_event(event_type: str, data_text: str) -> None:
+    if event_type == "hello":
+        log(f"connected to SSE stream: {data_text}")
+        return
+
+    if event_type != "job":
+        log(f"ignoring SSE event type={event_type!r}")
+        return
+
+    job = json.loads(data_text)
+    log(f"received job over SSE: {job.get('job_id')} type={job.get('type')}")
+    result = handle_job(job)
+    post_json(f"{CLOUD_BASE}/api/result", result)
+    log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')}")
+
+
 def main() -> None:
     print("""
 ╔════════════════════════════════════════════════════╗
-║          NIELSOLN LOCAL HELPER - TINY POC          ║
+║       NIELSOLN LOCAL HELPER - SSE + POST POC       ║
 ╚════════════════════════════════════════════════════╝
 Cloud:  http://127.0.0.1:8001
+Events: http://127.0.0.1:8001/api/events
 CDP:    http://127.0.0.1:9222
 Target: http://127.0.0.1:8002/account
+
+Cloud pushes jobs to this helper over SSE.
+This helper uploads results back with ordinary HTTP POST.
 
 Press Ctrl+C to stop.
 """.strip())
 
     while True:
         try:
-            jobs = http_json(f"{CLOUD_BASE}/api/jobs").get("jobs", [])
-            if jobs:
-                log(f"received {len(jobs)} job(s)")
-            for job in jobs:
-                log(f"handling {job.get('job_id')} type={job.get('type')}")
-                result = handle_job(job)
-                post_json(f"{CLOUD_BASE}/api/result", result)
-                log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')}")
+            log("opening SSE stream")
+            for event_type, data_text in iter_sse_events(f"{CLOUD_BASE}/api/events"):
+                handle_sse_event(event_type, data_text)
         except KeyboardInterrupt:
             log("stopped")
             return
+        except (urllib.error.URLError, TimeoutError, OSError, RuntimeError) as e:
+            log(f"SSE disconnected or failed: {e!r}; reconnecting in 2s")
+            time.sleep(2)
         except Exception as e:
-            log(f"error: {e!r}")
-        time.sleep(2)
+            log(f"error: {e!r}; reconnecting in 2s")
+            time.sleep(2)
 
 
 if __name__ == "__main__":
