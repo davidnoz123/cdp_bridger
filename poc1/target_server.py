@@ -16,6 +16,11 @@ Click login, then open the account page.
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse
+import sys
+import threading
+import time
+
+from cdp_tools import ChromeCdpLauncher, ChromeCdpError
 
 HOST = "127.0.0.1"
 PORT = 8002
@@ -140,7 +145,38 @@ class TargetHandler(BaseHTTPRequestHandler):
 def main():
     httpd = ThreadingHTTPServer((HOST, PORT), TargetHandler)
     print(f"Fake target website running at http://{HOST}:{PORT}/")
-    httpd.serve_forever()
+
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server_thread.start()
+
+    login_url = f"http://{HOST}:{PORT}/login"
+    account_url = f"http://{HOST}:{PORT}/account"
+
+    try:
+        print("Launching CDP browser...")
+        chrome = ChromeCdpLauncher.launch(reuse_existing_if_available=True)
+        print(f"CDP browser ready at http://{chrome.host}:{chrome.port}")
+
+        print(f"Opening login page: {login_url}")
+        chrome.open_url_via_cdp(login_url)
+        time.sleep(1)  # allow browser to receive and store the session cookie
+
+        print(f"Opening account page: {account_url}")
+        chrome.open_url_via_cdp(account_url)
+        print("Browser ready. Account tab is open and logged in.")
+    except ChromeCdpError as e:
+        print(f"CDP browser launch failed: {e}", file=sys.stderr)
+        print(
+            "Start Chrome manually with --remote-debugging-port=9222 "
+            "and a dedicated --user-data-dir (not your default profile).",
+            file=sys.stderr,
+        )
+
+    try:
+        server_thread.join()
+    except KeyboardInterrupt:
+        print("Stopping...")
+        httpd.shutdown()
 
 
 if __name__ == "__main__":
