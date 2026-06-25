@@ -47,6 +47,7 @@ NEXT_JOB_ID = 1
 # a production version should use an async server or another scalable event layer.
 CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 CLIENTS_LOCK = threading.Lock()
+JOBS_LOCK = threading.Lock()
 
 
 def now() -> str:
@@ -127,8 +128,9 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/":
-            pending = [j for j in JOBS if j.get("status") == "pending"]
-            results_json = json.dumps(RESULTS[-5:], indent=2, ensure_ascii=False)
+            with JOBS_LOCK:
+                pending = [j for j in JOBS if j.get("status") == "pending"]
+                results_json = json.dumps(RESULTS[-5:], indent=2, ensure_ascii=False)
             with CLIENTS_LOCK:
                 connected = len(CLIENTS)
             body = f"""
@@ -159,12 +161,15 @@ class CloudHandler(BaseHTTPRequestHandler):
 
         # Kept as a debugging endpoint; the helper no longer uses it.
         if path == "/api/jobs":
-            pending = [j for j in JOBS if j.get("status") == "pending"]
+            with JOBS_LOCK:
+                pending = [j for j in JOBS if j.get("status") == "pending"]
             self.send_json({"jobs": pending})
             return
 
         if path == "/api/results":
-            self.send_json({"results": RESULTS})
+            with JOBS_LOCK:
+                results_snapshot = list(RESULTS)
+            self.send_json({"results": results_snapshot})
             return
 
         self.send_html("404", "<h1>404</h1>", status=404)
@@ -186,8 +191,11 @@ class CloudHandler(BaseHTTPRequestHandler):
             self.write_sse("hello", {"ok": True, "server_time": now(), "connected_helpers": connected})
 
             # If jobs already exist when the helper connects, push them immediately.
-            for job in [j for j in JOBS if j.get("status") == "pending"]:
-                job["status"] = "sent"
+            with JOBS_LOCK:
+                pending_jobs = [j for j in JOBS if j.get("status") == "pending"]
+                for job in pending_jobs:
+                    job["status"] = "sent"
+            for job in pending_jobs:
                 self.write_sse("job", job)
 
             while True:
@@ -210,18 +218,19 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/create-demo-job":
-            job = {
-                "job_id": f"job_{NEXT_JOB_ID}",
-                "created_at": now(),
-                "status": "pending",
-                "type": "capture_visible_text_from_target_tab",
-                "allowed_url_prefix": "http://127.0.0.1:8002/account",
-            }
-            NEXT_JOB_ID += 1
-            JOBS.append(job)
+            with JOBS_LOCK:
+                job = {
+                    "job_id": f"job_{NEXT_JOB_ID}",
+                    "created_at": now(),
+                    "status": "pending",
+                    "type": "capture_visible_text_from_target_tab",
+                    "allowed_url_prefix": "http://127.0.0.1:8002/account",
+                }
+                NEXT_JOB_ID += 1
+                JOBS.append(job)
+                job["status"] = "sent"
 
-            # Push to any connected helper immediately.
-            job["status"] = "sent"
+            # Broadcast outside the lock to avoid holding it during I/O.
             broadcast("job", job)
 
             self.send_response(303)
@@ -232,11 +241,12 @@ class CloudHandler(BaseHTTPRequestHandler):
         if path == "/api/result":
             result = self.read_json()
             result["received_at"] = now()
-            RESULTS.append(result)
-            for job in JOBS:
-                if job.get("job_id") == result.get("job_id"):
-                    job["status"] = "done" if result.get("ok") else "error"
-                    job["finished_at"] = now()
+            with JOBS_LOCK:
+                RESULTS.append(result)
+                for job in JOBS:
+                    if job.get("job_id") == result.get("job_id"):
+                        job["status"] = "done" if result.get("ok") else "error"
+                        job["finished_at"] = now()
             self.send_json({"ok": True})
             return
 

@@ -236,6 +236,7 @@ class TinyWebSocket:
                 continue
             if opcode == 0xA:  # pong
                 continue
+            raise RuntimeError(f"unsupported WebSocket opcode: {opcode:#04x}")
 
 
 class CdpClient:
