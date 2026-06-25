@@ -334,9 +334,23 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
 
     job = json.loads(data_text)
     log(f"received job over SSE: {job.get('job_id')} type={job.get('type')}")
-    result = handle_job(job)
-    post_json(f"{CLOUD_BASE}/api/result", result)
-    log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')}")
+    try:
+        result = handle_job(job)
+    except Exception as e:
+        if isinstance(e, urllib.error.URLError) and isinstance(e.reason, ConnectionRefusedError):
+            log(
+                f"job {job.get('job_id')} failed: CDP not available at {CDP_BASE} — "
+                f"Chrome must be started with --remote-debugging-port=9222 and a dedicated "
+                f"--user-data-dir (the default Chrome profile does not support remote debugging)"
+            )
+        else:
+            log(f"job {job.get('job_id')} failed during processing: {e!r}")
+        result = {"ok": False, "job_id": job.get("job_id"), "error": repr(e)}
+    try:
+        post_json(f"{CLOUD_BASE}/api/result", result)
+        log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')}")
+    except Exception as e:
+        log(f"failed to upload result for {job.get('job_id')}: {e!r}")
 
 
 def main() -> None:

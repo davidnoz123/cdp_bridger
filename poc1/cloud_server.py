@@ -198,8 +198,8 @@ class CloudHandler(BaseHTTPRequestHandler):
                     # SSE comments are standard heartbeat frames; clients ignore them.
                     self.wfile.write(f": heartbeat {now()}\n\n".encode("utf-8"))
                     self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+            self.log_message("SSE client disconnected: %s", e)
         finally:
             with CLIENTS_LOCK:
                 if q in CLIENTS:
