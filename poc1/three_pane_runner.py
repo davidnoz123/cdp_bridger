@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-"""
-three_pane_runner.py
-
-Run an arbitrary number of subprocesses and display their output in
-vertically-stacked console panes.
-
-This is an output monitor, not a fully interactive terminal multiplexer.
-
-Works best in:
-  - Windows Terminal
-  - PowerShell
-  - modern cmd.exe with VT/ANSI enabled
-  - Linux/macOS terminals
-
-Usage:
-  python three_pane_runner.py
-
-Press Ctrl+C to stop.
-"""
 
 import collections
 import ctypes
@@ -37,6 +17,17 @@ class MultiPaneConsole:
     """
     Run an arbitrary number of subprocesses and display their output in
     vertically-stacked terminal panes.
+    
+
+    This is an output monitor, not a fully interactive terminal multiplexer.
+
+    Works best in:
+      - Windows Terminal
+      - PowerShell
+      - modern cmd.exe with VT/ANSI enabled
+      - Linux/macOS terminals
+
+    Press Ctrl+C to stop.    
 
     Usage::
 
@@ -334,60 +325,59 @@ class MultiPaneConsole:
         new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
         kernel32.SetConsoleMode(handle, new_mode)
 
+
+
+
+
+
     @staticmethod
-    def python_unbuffered_command(code: str) -> typing.List[str]:
-        """Build a command list that runs inline Python code with -u (unbuffered)."""
-        return [sys.executable, "-u", "-c", code]
-
-
-# Convenience alias so callers can write PaneProcess(...) directly.
-PaneProcess = MultiPaneConsole.PaneProcess
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-def main() -> int:
-    panes = [
-        MultiPaneConsole.PaneProcess(
-            title="Process 1",
-            command=MultiPaneConsole.python_unbuffered_command(
-                "import time\n"
-                "i = 0\n"
-                "while True:\n"
-                "    print(f'alpha tick {i}', flush=True)\n"
-                "    i += 1\n"
-                "    time.sleep(0.5)\n"
+    def MultiPaneConsole_testbed() -> int:
+    
+        def python_unbuffered_command(code: str) -> typing.List[str]:
+            """Build a command list that runs inline Python code with -u (unbuffered)."""
+            return [sys.executable, "-u", "-c", code]    
+            
+        panes = [
+            MultiPaneConsole.PaneProcess(
+                title="Process 1",
+                command=python_unbuffered_command(
+                    "import time\n"
+                    "i = 0\n"
+                    "while True:\n"
+                    "    print(f'alpha tick {i}', flush=True)\n"
+                    "    i += 1\n"
+                    "    time.sleep(0.5)\n"
+                ),
             ),
-        ),
-        MultiPaneConsole.PaneProcess(
-            title="Process 2",
-            command=MultiPaneConsole.python_unbuffered_command(
-                "import time, random\n"
-                "i = 0\n"
-                "while True:\n"
-                "    print(f'beta value {i} random={random.randint(1, 100)}', flush=True)\n"
-                "    i += 1\n"
-                "    time.sleep(0.8)\n"
+            MultiPaneConsole.PaneProcess(
+                title="Process 2",
+                command=python_unbuffered_command(
+                    "import time, random\n"
+                    "i = 0\n"
+                    "while True:\n"
+                    "    print(f'beta value {i} random={random.randint(1, 100)}', flush=True)\n"
+                    "    i += 1\n"
+                    "    time.sleep(0.8)\n"
+                ),
             ),
-        ),
-        MultiPaneConsole.PaneProcess(
-            title="Process 3",
-            command=MultiPaneConsole.python_unbuffered_command(
-                "import time\n"
-                "i = 0\n"
-                "while True:\n"
-                "    print(f'gamma doing work step {i}', flush=True)\n"
-                "    i += 1\n"
-                "    time.sleep(1.2)\n"
+            MultiPaneConsole.PaneProcess(
+                title="Process 3",
+                command=python_unbuffered_command(
+                    "import time\n"
+                    "i = 0\n"
+                    "while True:\n"
+                    "    print(f'gamma doing work step {i}', flush=True)\n"
+                    "    i += 1\n"
+                    "    time.sleep(1.2)\n"
+                ),
             ),
-        ),
-    ]
+        ]
 
-    MultiPaneConsole(panes).run()
-    return 0
+        MultiPaneConsole(panes).run()
+        return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    if True:
+        MultiPaneConsole.MultiPaneConsole_testbed()
+        raise Exception("OK")
