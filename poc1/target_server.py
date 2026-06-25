@@ -185,16 +185,18 @@ def _navigate_tab_to(ws_url: str, url: str, timeout: float = 10.0) -> None:
 
 def main():
     httpd = ThreadingHTTPServer((HOST, PORT), TargetHandler)
-    print(f"Fake target website running at http://{HOST}:{PORT}/")
+    
+    base_address = f"http://{HOST}:{PORT}/"
+    print(f"Fake target website running at {base_address}")
 
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
 
-    login_url = f"http://{HOST}:{PORT}/login"
-    account_url = f"http://{HOST}:{PORT}/account"
+    login_url = f"{base_address}login"
+    account_url = f"{base_address}account"
 
     try:
-        print("Launching CDP browser...")
+        print(f"Launching CDP browser for website running at {base_address} ...")
         chrome = ChromeCdpLauncher.launch(reuse_existing_if_available=True)
         print(f"CDP browser ready at http://{chrome.host}:{chrome.port}")
 
@@ -218,14 +220,16 @@ def main():
             if login_tab is None:
                 raise ChromeCdpError("Login tab did not appear within timeout")
 
-            # Navigate the same tab to the account page instead of opening a
-            # second tab — eliminates both the extra tab and the cookie race.
-            ws_url = login_tab.get("webSocketDebuggerUrl")
-            if not ws_url:
-                raise ChromeCdpError("Login tab has no webSocketDebuggerUrl")
-            print(f"Navigating to account page: {account_url}")
-            _navigate_tab_to(ws_url, account_url)
-            print("Browser ready. Account tab is open and logged in.")
+            if False:
+                # Navigate the same tab to the account page instead of opening a
+                # second tab — eliminates both the extra tab and the cookie race.
+                ws_url = login_tab.get("webSocketDebuggerUrl")
+                if not ws_url:
+                    raise ChromeCdpError("Login tab has no webSocketDebuggerUrl")
+                print(f"Navigating to account page: {account_url}")
+                _navigate_tab_to(ws_url, account_url)
+                print("Browser ready. Account tab is open and logged in.")
+                
     except ChromeCdpError as e:
         print(f"CDP browser launch failed: {e}", file=sys.stderr)
         print(
