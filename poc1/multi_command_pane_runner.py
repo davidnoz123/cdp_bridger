@@ -24,8 +24,17 @@ class MultiPaneConsole:
     Simple mouse support:
       - Mouse wheel over a pane scrolls that pane's output history.
       - Middle-click over a pane jumps that pane back to live/follow mode.
+      - m toggles between SCROLL MODE and SELECT MODE.
       - q exits.
       - Ctrl+C exits.
+
+    Mode summary:
+      - SCROLL MODE: app owns mouse, panes scroll.
+      - SELECT MODE: cmd.exe owns mouse, Quick Edit can select.
+
+    This cmd.exe-friendly variant deliberately does NOT use the alternate
+    screen buffer. The panes are drawn into the normal console buffer so
+    Quick Edit can select the visible pane text.
 
     Mouse support depends on the terminal supporting ANSI/VT mouse reporting.
     It works best in Windows Terminal, modern PowerShell terminals, VS Code
@@ -250,13 +259,15 @@ class MultiPaneConsole:
 
                 self._old_stdin_mode = mode.value
 
-                # Disable Quick Edit if possible because it can interfere with
-                # mouse reporting in some console hosts.
+                # Leave Quick Edit enabled. Classic cmd.exe uses Quick Edit
+                # for the familiar white drag-selection region. Mouse wheel
+                # pane scrolling is handled by ANSI mouse reporting while the
+                # application is in SCROLL MODE.
                 new_mode = mode.value
                 new_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT
                 new_mode |= ENABLE_MOUSE_INPUT
                 new_mode |= ENABLE_EXTENDED_FLAGS
-                new_mode &= ~ENABLE_QUICK_EDIT_MODE
+                new_mode |= ENABLE_QUICK_EDIT_MODE
 
                 kernel32.SetConsoleMode(handle, new_mode)
             except Exception:
@@ -296,6 +307,8 @@ class MultiPaneConsole:
         self.mouse_scroll_lines = mouse_scroll_lines
         self.running = False
         self._input_buffer = ""
+        self._mouse_enabled = True
+        self._select_mode = False
 
     # ------------------------------------------------------------------
     # Main loop
@@ -304,24 +317,26 @@ class MultiPaneConsole:
     def run(self) -> None:
         self.enable_ansi_on_windows()
 
-        for pane in self.panes:
-            pane.start()
-
-        self.running = True
+        started_panes: typing.List[MultiPaneConsole.PaneProcess] = []
 
         try:
+            for pane in self.panes:
+                pane.start()
+                started_panes.append(pane)
+
+            self.running = True
+
             with self.ConsoleInput() as console_input:
-                self.enter_alternate_screen()
-                self.hide_cursor()
-                self.enable_mouse_reporting()
-                self.clear_screen()
+                self.enter_scroll_mode(initial=True)
 
                 while self.running:
-                    for pane in self.panes:
-                        pane.drain_output()
-
                     self.handle_input(console_input.read_available())
-                    self.render()
+
+                    if not self._select_mode:
+                        for pane in self.panes:
+                            pane.drain_output()
+                        self.render()
+
                     time.sleep(self.refresh_seconds)
 
         except KeyboardInterrupt:
@@ -330,14 +345,15 @@ class MultiPaneConsole:
         finally:
             self.running = False
 
-            for pane in self.panes:
+            for pane in started_panes:
                 pane.terminate()
-            for pane in self.panes:
+            for pane in started_panes:
                 pane.kill_if_needed()
 
             self.disable_mouse_reporting()
             self.show_cursor()
-            self.leave_alternate_screen()
+            # This variant does not use the alternate screen; leave the panes
+            # visible in the normal console buffer on exit.
             self.move_cursor(1, self.terminal_size().lines)
             print()
 
@@ -353,14 +369,10 @@ class MultiPaneConsole:
 
         self._input_buffer += text
 
-        # Plain keyboard fallback: q exits. Ctrl+C is still handled by Python
-        # as KeyboardInterrupt in normal terminals.
-        if "q" in self._input_buffer or "Q" in self._input_buffer:
-            self.running = False
-            self._input_buffer = ""
-            return
-
-        # Parse any complete SGR mouse events in the buffer.
+        # Parse SGR mouse events FIRST so their trailing M/m characters are
+        # consumed before we check plain keyboard keys. SGR press events end
+        # with M and release events end with m; checking keyboard keys first
+        # would accidentally toggle mouse mode on every click.
         pos = 0
         for match in self._SGR_MOUSE_RE.finditer(self._input_buffer):
             pos = match.end()
@@ -376,6 +388,56 @@ class MultiPaneConsole:
         self._input_buffer = self._input_buffer[pos:]
         if len(self._input_buffer) > 100:
             self._input_buffer = self._input_buffer[-20:]
+
+        # Now check what remains for plain keyboard keys (bare characters not
+        # consumed as part of any escape sequence).
+        if "q" in self._input_buffer or "Q" in self._input_buffer:
+            self.running = False
+            self._input_buffer = ""
+            return
+
+        # m/M toggles between the two deliberately different mouse modes.
+        #
+        # SCROLL MODE: app owns mouse, panes scroll.
+        # SELECT MODE: cmd.exe owns mouse, Quick Edit can select.
+        if "m" in self._input_buffer or "M" in self._input_buffer:
+            self._input_buffer = self._input_buffer.replace("m", "").replace("M", "")
+            self.toggle_mouse_mode()
+
+
+    def toggle_mouse_mode(self) -> None:
+        if self._select_mode:
+            self.enter_scroll_mode(initial=False)
+        else:
+            self.enter_select_mode()
+
+    def enter_select_mode(self) -> None:
+        """Pause repainting and give the mouse back to classic Windows Quick Edit."""
+        self._select_mode = True
+        self._mouse_enabled = False
+
+        # Important: do NOT leave the alternate screen here. This cmd.exe
+        # variant never enters the alternate screen in the first place, so the
+        # pane text remains visible in the normal console buffer for Quick Edit.
+        self.disable_mouse_reporting()
+        self.show_cursor()
+        self.enable_windows_quick_edit_selection_mode()
+        self.draw_status_line(self.terminal_size().lines, self.terminal_size().columns)
+
+    def enter_scroll_mode(self, *, initial: bool) -> None:
+        """Return to the app-owned pane-scrolling display."""
+        self._select_mode = False
+        self._mouse_enabled = True
+
+        self.enable_windows_scroll_input_mode()
+        self.hide_cursor()
+        self.enable_mouse_reporting()
+
+        # Deliberately draw into the normal console buffer, not the alternate
+        # screen, so the visible pane text can be selected by cmd.exe Quick Edit.
+        if initial:
+            self.clear_screen()
+        self.render()
 
     def handle_mouse_event(self, *, button: int, x: int, y: int, pressed: bool) -> None:
         # SGR wheel events normally arrive as pressed events with button codes:
@@ -423,7 +485,8 @@ class MultiPaneConsole:
     def render(self) -> None:
         size = self.terminal_size()
         width = max(size.columns, 40)
-        height = max(size.lines, 10)
+        # Reserve the last line for the status bar.
+        height = max(size.lines - 1, 9)
 
         pane_heights = self.split_height(height, len(self.panes))
 
@@ -437,6 +500,8 @@ class MultiPaneConsole:
                 height=pane_height,
             )
             top += pane_height
+
+        self.draw_status_line(size.lines, width)
 
     def draw_pane(
         self,
@@ -513,6 +578,22 @@ class MultiPaneConsole:
         self.move_cursor(1, size.lines)
         self.write(self.truncate(message, size.columns))
 
+    def draw_status_line(self, row: int, width: int) -> None:
+        if self._select_mode:
+            hint = "SELECT MODE: cmd.exe owns mouse, Quick Edit can select | m=SCROLL MODE | q=quit"
+        else:
+            hint = (
+                "SCROLL MODE: app owns mouse, panes scroll | "
+                "wheel=scroll | mid-click=live | m=SELECT MODE | q=quit"
+            )
+
+        line = f" [ {hint} ] "
+        line = self.truncate(line, width)
+
+        # Inverted colours make the status bar stand out from the pane borders.
+        self.move_cursor(1, row)
+        self.write("\x1b[7m" + line.ljust(width) + "\x1b[0m")
+
     # ------------------------------------------------------------------
     # Layout helpers
     # ------------------------------------------------------------------
@@ -587,6 +668,66 @@ class MultiPaneConsole:
     def disable_mouse_reporting() -> None:
         MultiPaneConsole.write("\x1b[?1006l")
         MultiPaneConsole.write("\x1b[?1000l")
+
+    @staticmethod
+    def enable_windows_scroll_input_mode() -> None:
+        """Prefer VT mouse reporting while keeping Quick Edit available."""
+        if os.name != "nt":
+            return
+
+        try:
+            kernel32 = ctypes.windll.kernel32
+
+            STD_INPUT_HANDLE = -10
+            ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200
+            ENABLE_MOUSE_INPUT = 0x0010
+            ENABLE_EXTENDED_FLAGS = 0x0080
+            ENABLE_QUICK_EDIT_MODE = 0x0040
+
+            handle = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+            mode = ctypes.c_uint32()
+            if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                return
+
+            new_mode = mode.value
+            new_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT
+            new_mode |= ENABLE_MOUSE_INPUT
+            new_mode |= ENABLE_EXTENDED_FLAGS
+            new_mode |= ENABLE_QUICK_EDIT_MODE
+
+            kernel32.SetConsoleMode(handle, new_mode)
+        except Exception:
+            pass
+
+    @staticmethod
+    def enable_windows_quick_edit_selection_mode() -> None:
+        """Give classic cmd.exe the best chance to use Quick Edit selection."""
+        if os.name != "nt":
+            return
+
+        try:
+            kernel32 = ctypes.windll.kernel32
+
+            STD_INPUT_HANDLE = -10
+            ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200
+            ENABLE_MOUSE_INPUT = 0x0010
+            ENABLE_EXTENDED_FLAGS = 0x0080
+            ENABLE_QUICK_EDIT_MODE = 0x0040
+
+            handle = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+            mode = ctypes.c_uint32()
+            if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                return
+
+            new_mode = mode.value
+            new_mode &= ~ENABLE_VIRTUAL_TERMINAL_INPUT
+            new_mode &= ~ENABLE_MOUSE_INPUT
+            new_mode |= ENABLE_EXTENDED_FLAGS
+            new_mode |= ENABLE_QUICK_EDIT_MODE
+
+            kernel32.SetConsoleMode(handle, new_mode)
+        except Exception:
+            pass
 
     @staticmethod
     def python_unbuffered_command(code: str) -> typing.List[str]:
