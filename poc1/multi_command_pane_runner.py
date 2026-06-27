@@ -185,7 +185,7 @@ class MultiPaneConsole:
 
         def _read_available_windows(self) -> str:
             try:
-                import msvcrt
+                import msvcrt  # Windows-only; cannot be a top-level import on non-Windows platforms.
             except ImportError:
                 return ""
 
@@ -214,8 +214,8 @@ class MultiPaneConsole:
             if not sys.stdin.isatty():
                 return
 
-            import termios
-            import tty
+            import termios  # Unix-only; cannot be a top-level import on Windows.
+            import tty      # Unix-only; cannot be a top-level import on Windows.
 
             fd = sys.stdin.fileno()
             self._old_termios = termios.tcgetattr(fd)
@@ -225,7 +225,7 @@ class MultiPaneConsole:
             if self._old_termios is None:
                 return
 
-            import termios
+            import termios  # Unix-only; cannot be a top-level import on Windows.
 
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, self._old_termios)
             self._old_termios = None
@@ -311,6 +311,7 @@ class MultiPaneConsole:
 
         try:
             with self.ConsoleInput() as console_input:
+                self.enter_alternate_screen()
                 self.hide_cursor()
                 self.enable_mouse_reporting()
                 self.clear_screen()
@@ -336,6 +337,7 @@ class MultiPaneConsole:
 
             self.disable_mouse_reporting()
             self.show_cursor()
+            self.leave_alternate_screen()
             self.move_cursor(1, self.terminal_size().lines)
             print()
 
@@ -562,6 +564,18 @@ class MultiPaneConsole:
         MultiPaneConsole.write("\x1b[?25h")
 
     @staticmethod
+    def enter_alternate_screen() -> None:
+        # The alternate screen buffer has no scrollback of its own, so the
+        # terminal forwards scroll-wheel events to the application as mouse
+        # events rather than scrolling the host terminal window.
+        MultiPaneConsole.write("\x1b[?1049h")
+
+    @staticmethod
+    def leave_alternate_screen() -> None:
+        # Restore the original screen contents and cursor position.
+        MultiPaneConsole.write("\x1b[?1049l")
+
+    @staticmethod
     def enable_mouse_reporting() -> None:
         # SGR extended mouse coordinates are the important one here.
         # 1000 enables button events; 1006 makes coordinates parseable as
@@ -573,6 +587,11 @@ class MultiPaneConsole:
     def disable_mouse_reporting() -> None:
         MultiPaneConsole.write("\x1b[?1006l")
         MultiPaneConsole.write("\x1b[?1000l")
+
+    @staticmethod
+    def python_unbuffered_command(code: str) -> typing.List[str]:
+        """Build a command list that runs inline Python code with -u (unbuffered)."""
+        return [sys.executable, "-u", "-c", code]
 
     @staticmethod
     def enable_ansi_on_windows() -> None:
@@ -605,15 +624,11 @@ class MultiPaneConsole:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def MultiPaneConsole_testbed() -> int:
-        def python_unbuffered_command(code: str) -> typing.List[str]:
-            """Build a command list that runs inline Python code with -u (unbuffered)."""
-            return [sys.executable, "-u", "-c", code]
-
+    def testbed() -> int:
         panes = [
             MultiPaneConsole.PaneProcess(
                 title="Process 1",
-                command=python_unbuffered_command(
+                command=MultiPaneConsole.python_unbuffered_command(
                     "import time\n"
                     "i = 0\n"
                     "while True:\n"
@@ -625,7 +640,7 @@ class MultiPaneConsole:
             ),
             MultiPaneConsole.PaneProcess(
                 title="Process 2",
-                command=python_unbuffered_command(
+                command=MultiPaneConsole.python_unbuffered_command(
                     "import time, random\n"
                     "i = 0\n"
                     "while True:\n"
@@ -637,7 +652,7 @@ class MultiPaneConsole:
             ),
             MultiPaneConsole.PaneProcess(
                 title="Process 3",
-                command=python_unbuffered_command(
+                command=MultiPaneConsole.python_unbuffered_command(
                     "import time\n"
                     "i = 0\n"
                     "while True:\n"
@@ -654,4 +669,4 @@ class MultiPaneConsole:
 
 
 if __name__ == "__main__":
-    MultiPaneConsole.MultiPaneConsole_testbed()
+    MultiPaneConsole.testbed()
