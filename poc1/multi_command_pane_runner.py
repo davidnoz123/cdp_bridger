@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import ctypes
 import dataclasses
@@ -24,17 +26,20 @@ class MultiPaneConsole:
     Simple mouse support:
       - Mouse wheel over a pane scrolls that pane's output history.
       - Middle-click over a pane jumps that pane back to live/follow mode.
-      - m toggles between SCROLL MODE and SELECT MODE.
+      - On Windows only, m toggles between SCROLL MODE and SELECT MODE.
       - q exits.
       - Ctrl+C exits.
 
     Mode summary:
       - SCROLL MODE: app owns mouse, panes scroll.
-      - SELECT MODE: cmd.exe owns mouse, Quick Edit can select.
+      - SELECT MODE: cmd.exe owns mouse, Quick Edit can select (Windows only).
 
     This cmd.exe-friendly variant deliberately does NOT use the alternate
     screen buffer. The panes are drawn into the normal console buffer so
     Quick Edit can select the visible pane text.
+
+    On non-Windows platforms, the m key is intentionally ignored and the
+    SELECT MODE/Quick Edit feature is not advertised in the status line.
 
     Mouse support depends on the terminal supporting ANSI/VT mouse reporting.
     It works best in Windows Terminal, modern PowerShell terminals, VS Code
@@ -309,6 +314,9 @@ class MultiPaneConsole:
         self._input_buffer = ""
         self._mouse_enabled = True
         self._select_mode = False
+        # Quick Edit is a Windows console feature.  On non-Windows platforms
+        # the m key is deliberately disabled/ignored.
+        self._select_mode_supported = os.name == "nt"
 
     # ------------------------------------------------------------------
     # Main loop
@@ -396,13 +404,16 @@ class MultiPaneConsole:
             self._input_buffer = ""
             return
 
-        # m/M toggles between the two deliberately different mouse modes.
+        # On Windows, m/M toggles between the two deliberately different
+        # mouse modes. On other platforms, m/M is intentionally ignored so the
+        # UI does not advertise or enter a Windows-specific Quick Edit mode.
         #
         # SCROLL MODE: app owns mouse, panes scroll.
         # SELECT MODE: cmd.exe owns mouse, Quick Edit can select.
         if "m" in self._input_buffer or "M" in self._input_buffer:
             self._input_buffer = self._input_buffer.replace("m", "").replace("M", "")
-            self.toggle_mouse_mode()
+            if self._select_mode_supported:
+                self.toggle_mouse_mode()
 
 
     def toggle_mouse_mode(self) -> None:
@@ -581,10 +592,15 @@ class MultiPaneConsole:
     def draw_status_line(self, row: int, width: int) -> None:
         if self._select_mode:
             hint = "SELECT MODE: cmd.exe owns mouse, Quick Edit can select | m=SCROLL MODE | q=quit"
-        else:
+        elif self._select_mode_supported:
             hint = (
                 "SCROLL MODE: app owns mouse, panes scroll | "
                 "wheel=scroll | mid-click=live | m=SELECT MODE | q=quit"
+            )
+        else:
+            hint = (
+                "SCROLL MODE: app owns mouse, panes scroll | "
+                "wheel=scroll | mid-click=live | q=quit"
             )
 
         line = f" [ {hint} ] "
