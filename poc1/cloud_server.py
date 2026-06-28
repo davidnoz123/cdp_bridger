@@ -116,6 +116,24 @@ def broadcast_to_browsers(event_type: str, data: dict[str, Any]) -> None:
         q.put({"event": event_type, "data": dict(data)})
 
 
+
+
+def find_job_by_id(job_id: str) -> dict[str, Any] | None:
+    for job in JOBS:
+        if job.get("job_id") == job_id:
+            return job
+    return None
+
+
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that suppresses expected browser/SSE socket abort noise."""
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
+
 class CloudHandler(BaseHTTPRequestHandler):
     server_version = "FakeCloudSSE/0.2"
 
@@ -327,6 +345,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                     # received it. This avoids losing jobs created before the
                     # SSE helper stream is connected.
                     "status": "pending",
+                    "result_received": False,
                     # High-level instruction only. The cloud does not send raw
                     # CDP commands and does not choose the exact tab. The local
                     # helper finds the currently open target page under this
@@ -361,23 +380,71 @@ class CloudHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/result":
-            result = self.read_json()
-            result["received_at"] = now()
+            try:
+                result = self.read_json()
+            except Exception as exc:
+                self.send_json({
+                    "ok": False,
+                    "error": "invalid or incomplete JSON POST body",
+                    "detail": repr(exc),
+                }, status=400)
+                return
+
+            job_id = result.get("job_id")
+            if not isinstance(job_id, str) or not job_id:
+                self.send_json({
+                    "ok": False,
+                    "error": "result POST missing required string job_id",
+                }, status=400)
+                return
+
+            received_at = now()
             with JOBS_LOCK:
+                job = find_job_by_id(job_id)
+                if job is None:
+                    self.send_json({
+                        "ok": False,
+                        "error": "result POST references unknown job_id",
+                        "job_id": job_id,
+                    }, status=404)
+                    return
+
+                if job.get("status") in {"complete", "failed"}:
+                    self.send_json({
+                        "ok": False,
+                        "error": "duplicate final result for job_id",
+                        "job_id": job_id,
+                        "current_status": job.get("status"),
+                    }, status=409)
+                    return
+
+                # At this point the cloud server has received a complete HTTP
+                # request body, parsed valid JSON, correlated it to a known
+                # job_id, and accepted it as the one final result for that job.
+                result["received_at"] = received_at
+                result["job_status_before_result"] = job.get("status")
+
+                job["status"] = "complete" if result.get("ok") else "failed"
+                job["finished_at"] = received_at
+                job["result_received"] = True
+                job["result_ok"] = bool(result.get("ok"))
+
                 RESULTS.append(result)
-                for job in JOBS:
-                    if job.get("job_id") == result.get("job_id"):
-                        job["status"] = "done" if result.get("ok") else "error"
-                        job["finished_at"] = now()
+
             broadcast_to_browsers("result", result)
-            self.send_json({"ok": True})
+            self.send_json({
+                "ok": True,
+                "job_id": job_id,
+                "job_status": "complete" if result.get("ok") else "failed",
+                "accepted_at": received_at,
+            })
             return
 
         self.send_json({"ok": False, "error": "not found"}, status=404)
 
 
 def main():
-    httpd = ThreadingHTTPServer((HOST, PORT), CloudHandler)
+    httpd = QuietThreadingHTTPServer((HOST, PORT), CloudHandler)
     base_url = f"http://{HOST}:{PORT}/"
     print(f"{dummy_remote_site_name} server running at {base_url}")
     print(f"SSE stream available at http://{HOST}:{PORT}/api/events")

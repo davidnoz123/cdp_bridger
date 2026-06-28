@@ -352,6 +352,10 @@ def requested_allowed_prefix(job: dict[str, Any]) -> str:
 
 
 def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
+    job_id = job.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        return False, "job missing required string job_id"
+
     if job.get("type") != ALLOWED_JOB_TYPE:
         return False, f"unsupported job type {job.get('type')!r}"
 
@@ -416,8 +420,8 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
             log(f"job {job.get('job_id')} failed during processing: {e!r}")
         result = {"ok": False, "job_id": job.get("job_id"), "error": repr(e)}
     try:
-        post_json(f"{CLOUD_BASE}/api/result", result)
-        log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')}")
+        response = post_json(f"{CLOUD_BASE}/api/result", result)
+        log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')} cloud_ack={response}")
     except Exception as e:
         log(f"failed to upload result for {job.get('job_id')}: {e!r}")
 
