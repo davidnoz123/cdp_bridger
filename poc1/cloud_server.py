@@ -91,6 +91,15 @@ def html_page(title: str, body: str) -> bytes:
     pre {{ background: #f5f5f5; padding: 12px; overflow: auto; border-radius: 8px; }}
     .box {{ border: 1px solid #ccc; padding: 16px; border-radius: 8px; margin: 16px 0; }}
     .ok {{ color: #080; }}
+    .capture-grid {{ display: grid; grid-template-columns: auto minmax(260px, 1fr) minmax(260px, 1.2fr); gap: 14px; align-items: center; }}
+    .capture-action button {{ white-space: nowrap; }}
+    .capture-target select {{ width: 100%; font-size: 15px; padding: 4px 8px; }}
+    .capture-status p {{ margin: 0; }}
+    @media (max-width: 760px) {{ .capture-grid {{ grid-template-columns: 1fr; }} }}
+    .latest-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+    .latest-table th, .latest-table td {{ border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }}
+    .latest-table th {{ background: #f5f5f5; }}
+    .latest-table td {{ word-break: break-word; }}
   </style>
 </head>
 <body>
@@ -233,13 +242,21 @@ class CloudHandler(BaseHTTPRequestHandler):
 <h1>{dummy_remote_site_name} Server</h1>
 <p>This pretends to be your web app / cloud job server.</p>
 <div class="box">
-  <form method="post" action="/create-demo-job">
-    <label for="allowed-url-prefix"><strong>Capture target</strong></label><br>
-    <select id="allowed-url-prefix" name="allowed_url_prefix" style="font-size:15px;padding:4px 8px;margin:8px 0;">
+  <form method="post" action="/create-demo-job" class="capture-form">
+    <div class="capture-grid">
+      <div class="capture-action">
+        <button type="submit">Create capture job</button>
+      </div>
+      <div class="capture-target">
+        <!--<label for="allowed-url-prefix"><strong>Capture target</strong></label><br>-->
+        <select id="allowed-url-prefix" name="allowed_url_prefix">
 {options_html}
-    </select>
-    <p id="helper-prefix-status" style="margin:6px 0;"></p>
-    <button type="submit">Create capture job</button>
+        </select>
+      </div>
+      <div class="capture-status">
+        <p id="helper-prefix-status"></p>
+      </div>
+    </div>
   </form>
 </div>
 <p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
@@ -291,6 +308,28 @@ class CloudHandler(BaseHTTPRequestHandler):
         }}
     }}
 
+    function latestSummaryTable(r) {{
+        var statusText = r.ok ? 'OK' : 'Failed';
+        var statusColor = r.ok ? '#080' : '#c00';
+        return '' +
+            '<table class="latest-table">' +
+            '<thead><tr>' +
+            '<th>Received</th>' +
+            '<th>Job</th>' +
+            '<th>Status</th>' +
+            '<th>Captured URL</th>' +
+            '<th>Title</th>' +
+            '</tr></thead>' +
+            '<tbody><tr>' +
+            '<td>' + escapeHtml(r.received_at || '') + '</td>' +
+            '<td>' + escapeHtml(r.job_id || '') + '</td>' +
+            '<td><span style="color:' + statusColor + '">' + escapeHtml(statusText) + '</span></td>' +
+            '<td>' + escapeHtml(r.captured_from_url || '') + '</td>' +
+            '<td>' + escapeHtml(r.captured_title || '') + '</td>' +
+            '</tr></tbody>' +
+            '</table>';
+    }}
+
     function renderLatestFriendly() {{
         var el = document.getElementById('latest-friendly');
         if (!results.length) {{
@@ -298,10 +337,10 @@ class CloudHandler(BaseHTTPRequestHandler):
             return;
         }}
         var r = results[0];
+        var tableHtml = latestSummaryTable(r);
         if (!r.ok) {{
             el.innerHTML =
-                '<p><strong>Status:</strong> <span style="color:#c00">Failed</span></p>' +
-                '<p><strong>Job:</strong> ' + escapeHtml(r.job_id || '') + '</p>' +
+                tableHtml +
                 '<p><strong>Error:</strong> ' + escapeHtml(r.error || '') + '</p>';
             return;
         }}
@@ -318,11 +357,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             }}
         }}
         el.innerHTML =
-            '<p><strong>Status:</strong> <span style="color:#080">OK</span></p>' +
-            '<p><strong>Job:</strong> ' + escapeHtml(r.job_id || '') + '</p>' +
-            '<p><strong>Captured URL:</strong> ' + escapeHtml(r.captured_from_url || '') + '</p>' +
-            '<p><strong>Title:</strong> ' + escapeHtml(r.captured_title || '') + '</p>' +
-            '<p><strong>Received:</strong> ' + escapeHtml(r.received_at || '') + '</p>' +
+            tableHtml +
             '<h3>Preview</h3><pre>' + escapeHtml(preview) + '</pre>' +
             areasHtml;
     }}
