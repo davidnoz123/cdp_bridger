@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+
+C:\analytics\projects\git\lexi\demos\venv\Scripts\python.exe
+import runpy ; temp = runpy._run_module_as_main("main")
+
 main.py
 
 Run the CDP-bridger POC stack in a single multi-pane console.
