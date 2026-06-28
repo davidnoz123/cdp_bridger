@@ -437,6 +437,7 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
         else:
             log(f"job {job.get('job_id')} failed during processing: {e!r}")
         result = {"ok": False, "job_id": job.get("job_id"), "error": repr(e)}
+    result["allowed_target_prefix"] = _as_prefix_list(ALLOWED_TARGET_PREFIX)
     try:
         response = post_json(f"{CLOUD_BASE}/api/result", result)
         log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')} cloud_ack={response}")
