@@ -259,8 +259,8 @@ class CloudHandler(BaseHTTPRequestHandler):
     </div>
   </form>
 </div>
-<p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
-<p><strong>Pending jobs:</strong> {len(pending)}</p>
+<!--<p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
+<p><strong>Pending jobs:</strong> {len(pending)}</p>-->
 <section class="box">
   <h2>Latest capture</h2>
   <div id="latest-friendly">No capture yet.</div>
@@ -314,10 +314,10 @@ class CloudHandler(BaseHTTPRequestHandler):
         return '' +
             '<table class="latest-table">' +
             '<thead><tr>' +
-            '<th>Received</th>' +
-            '<th>Job</th>' +
-            '<th>Status</th>' +
-            '<th>Captured URL</th>' +
+            '<th style="width:155px">Received</th>' +
+            '<th style="width:70px">Job</th>' +
+            '<th style="width:62px">Status</th>' +
+            '<th style="min-width:200px">Captured URL</th>' +
             '<th>Title</th>' +
             '</tr></thead>' +
             '<tbody><tr>' +
