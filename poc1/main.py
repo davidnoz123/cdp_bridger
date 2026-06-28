@@ -11,6 +11,9 @@ Run the CDP-bridger POC stack in a single multi-pane console.
 Press  q / Q  or  Ctrl+C  to stop all three processes and exit.
 Mouse wheel scrolls the pane under the cursor.
 Middle-click returns a pane to live/follow mode.
+
+This version includes a cross-platform port preflight so stale cloud/target
+servers are detected before the pane runner starts.
 """
 
 from __future__ import annotations
@@ -18,26 +21,25 @@ from __future__ import annotations
 import os
 import platform
 import socket
-import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Iterable
 
 from cdp_tools import ChromeCdpError, ChromeCdpLauncher
 from multi_command_pane_runner import MultiPaneConsole
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
+HOST = "127.0.0.1"
+CLOUD_PORT = 8001
+TARGET_PORT = 8002
+
 
 @dataclass(frozen=True)
-class ServerPort:
-    name: str
+class PortCheck:
+    host: str
     port: int
-
-
-POC_SERVER_PORTS = [
-    ServerPort("Our Remote Server / cloud_server.py", 8001),
-    ServerPort("User Account Target / target_server.py", 8002),
-]
+    description: str
 
 
 def _script(name: str) -> list[str]:
@@ -45,120 +47,95 @@ def _script(name: str) -> list[str]:
     return [sys.executable, "-u", "-X", "utf8", os.path.join(_HERE, name)]
 
 
-def _run_capture(command: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a small diagnostic command and capture text output without raising."""
-    try:
-        return subprocess.run(
-            command,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=False,
-            check=False,
+def _port_is_accepting_connections(host: str, port: int, timeout_seconds: float = 0.25) -> bool:
+    """Return True if something is already listening on host:port.
+
+    This is deliberately implemented with the Python standard library instead
+    of shelling out to netstat/ss/lsof, so it works on Windows, Linux, WSL,
+    and macOS.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(timeout_seconds)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _diagnostic_commands_for_port(port: int) -> list[str]:
+    """Return human-friendly commands for identifying stale listeners.
+
+    The actual check is cross-platform Python. These commands are only printed
+    as hints when a conflict is found.
+    """
+    system = platform.system().lower()
+
+    if system == "windows":
+        return [
+            f'netstat -ano | findstr :{port}',
+            f'for /f "tokens=5" %p in (\'netstat -ano ^| findstr :{port} ^| findstr LISTENING\') do tasklist /FI "PID eq %p"',
+            f'taskkill /PID <PID> /F',
+        ]
+
+    if system == "darwin":
+        return [
+            f"lsof -nP -iTCP:{port} -sTCP:LISTEN",
+            "kill <PID>",
+            "kill -9 <PID>   # only if the normal kill does not work",
+        ]
+
+    # Linux, WSL, and most other Unix-like environments.
+    return [
+        f"ss -ltnp 'sport = :{port}'",
+        f"lsof -nP -iTCP:{port} -sTCP:LISTEN",
+        "kill <PID>",
+        "kill -9 <PID>   # only if the normal kill does not work",
+    ]
+
+
+def _assert_required_ports_are_free(checks: Iterable[PortCheck]) -> None:
+    conflicts: list[PortCheck] = []
+
+    print("[main] Checking POC server ports before starting panes...", flush=True)
+
+    for check in checks:
+        print(
+            f"[main] Checking {check.description}: {check.host}:{check.port}",
+            flush=True,
         )
-    except Exception as exc:
-        return subprocess.CompletedProcess(command, returncode=999, stdout=f"[diagnostic command failed: {exc!r}]\n")
+        if _port_is_accepting_connections(check.host, check.port):
+            conflicts.append(check)
 
-
-def _windows_netstat_lines_for_port(port: int) -> list[str]:
-    """Return `netstat -ano | findstr :PORT`-style lines on Windows."""
-    # Avoid shell pipelines so quoting is simple and predictable.
-    result = _run_capture(["netstat", "-ano"])
-    token = f":{port}"
-    return [line for line in result.stdout.splitlines() if token in line]
-
-
-def _print_port_diagnostics(port: int) -> None:
-    """Print the platform-specific equivalent of `netstat -ano | findstr :PORT`."""
-    print(f"[main] Port preflight for :{port}")
-
-    if platform.system().lower() == "windows":
-        print(f"[main] > netstat -ano | findstr :{port}")
-        lines = _windows_netstat_lines_for_port(port)
-        if lines:
-            for line in lines:
-                print(f"[main]   {line}")
-        else:
-            print(f"[main]   no netstat rows for :{port}")
+    if not conflicts:
+        print("[main] Port preflight OK: no stale cloud/target servers detected.", flush=True)
         return
 
-    # Cross-platform fallback: show whether a bind would succeed.
-    if _is_port_free(port):
-        print(f"[main]   port {port} appears free")
-    else:
-        print(f"[main]   port {port} appears busy")
+    print("", file=sys.stderr)
+    print("[main] ERROR: one or more required POC ports are already in use.", file=sys.stderr)
+    print("[main] This usually means a stale cloud_server.py or target_server.py is still running.", file=sys.stderr)
+    print("", file=sys.stderr)
 
-
-def _windows_listening_pids_for_port(port: int) -> list[int]:
-    """Extract LISTENING PIDs from `netstat -ano` output on Windows."""
-    pids: list[int] = []
-    for line in _windows_netstat_lines_for_port(port):
-        parts = line.split()
-        if len(parts) >= 5 and parts[0].upper() == "TCP" and parts[3].upper() == "LISTENING":
-            try:
-                pids.append(int(parts[4]))
-            except ValueError:
-                pass
-    return sorted(set(pids))
-
-
-def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
-    """Return True if this process can bind host:port right now."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        # Do not use SO_REUSEADDR here. We want a conservative check that
-        # catches an existing POC server before the pane runner starts.
-        sock.bind((host, port))
-        return True
-    except OSError:
-        return False
-    finally:
-        sock.close()
-
-
-def _fail_if_server_port_busy(server: ServerPort) -> None:
-    """Refuse to start if a POC server port already has a listener."""
-    _print_port_diagnostics(server.port)
-
-    if _is_port_free(server.port):
-        print(f"[main] OK: {server.name} port {server.port} is free")
-        return
-
-    print(f"[main] ERROR: {server.name} port {server.port} is already in use", file=sys.stderr)
-
-    if platform.system().lower() == "windows":
-        pids = _windows_listening_pids_for_port(server.port)
-        if pids:
-            print(f"[main] LISTENING PID(s) on :{server.port}: {', '.join(map(str, pids))}", file=sys.stderr)
-            print("[main] Stop stale POC processes, for example:", file=sys.stderr)
-            for pid in pids:
-                print(f"[main]   taskkill /PID {pid} /F", file=sys.stderr)
-        else:
-            print(f"[main] No LISTENING PID found, but bind check says :{server.port} is busy.", file=sys.stderr)
-    else:
-        print(f"[main] Stop the process using 127.0.0.1:{server.port}, then rerun main.py.", file=sys.stderr)
+    for conflict in conflicts:
+        print(
+            f"[main] Port conflict: {conflict.description} is already listening on "
+            f"{conflict.host}:{conflict.port}",
+            file=sys.stderr,
+        )
+        print("[main] Diagnostic commands you can run:", file=sys.stderr)
+        for command in _diagnostic_commands_for_port(conflict.port):
+            print(f"  {command}", file=sys.stderr)
+        print("", file=sys.stderr)
 
     raise SystemExit(2)
 
 
-def _preflight_server_ports() -> None:
-    """Check all POC-owned server ports before launching subprocess panes."""
-    print("[main] Checking POC server ports before starting panes...")
-    for server in POC_SERVER_PORTS:
-        _fail_if_server_port_busy(server)
-    print("[main] Port preflight passed")
-
-
 def _launch_cdp_browser() -> None:
-    """Start or attach to the shared CDP Chrome instance before any subprocess needs it.
+    """Start or attach to the shared CDP Chrome instance before subprocesses need it.
 
     Doing this here eliminates the race where cloud_server and target_server both
     try to create Chrome at the same time. The subprocesses call
-    launch(reuse_existing_if_available=True) and always find it already running.
+    launch(reuse_existing_if_available=True) and should find it already running.
     """
     try:
         chrome = ChromeCdpLauncher.launch(reuse_existing_if_available=True)
-        print(f"[main] CDP browser ready at http://{chrome.host}:{chrome.port}")
+        print(f"[main] CDP browser ready at http://{chrome.host}:{chrome.port}", flush=True)
     except ChromeCdpError as e:
         print(f"[main] WARNING: could not start CDP browser: {e}", file=sys.stderr)
         print(
@@ -169,12 +146,13 @@ def _launch_cdp_browser() -> None:
 
 
 def main() -> int:
-    # These are strict POC-owned HTTP ports. If stale listeners exist, launching
-    # another pane-run stack makes the behaviour intermittent and confusing.
-    _preflight_server_ports()
+    _assert_required_ports_are_free(
+        [
+            PortCheck(HOST, CLOUD_PORT, "Our Remote cloud server"),
+            PortCheck(HOST, TARGET_PORT, "fake target website server"),
+        ]
+    )
 
-    # CDP/9222 is intentionally different: Chrome may already be running, and
-    # ChromeCdpLauncher knows how to attach to it.
     _launch_cdp_browser()
 
     panes = [
