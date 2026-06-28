@@ -34,9 +34,12 @@ class MultiPaneConsole:
       - SCROLL MODE: app owns mouse, panes scroll.
       - SELECT MODE: cmd.exe owns mouse, Quick Edit can select (Windows only).
 
-    This cmd.exe-friendly variant deliberately does NOT use the alternate
-    screen buffer. The panes are drawn into the normal console buffer so
-    Quick Edit can select the visible pane text.
+    Hybrid cmd.exe-friendly behaviour:
+      - SCROLL MODE uses the alternate screen buffer so mouse-wheel events are
+        consistently owned by the app and do not scroll the original prompt.
+      - SELECT MODE leaves the alternate screen, draws a frozen pane snapshot
+        into the normal console buffer, and enables Quick Edit so cmd.exe can
+        select the visible pane text.
 
     On non-Windows platforms, the m key is intentionally ignored and the
     SELECT MODE/Quick Edit feature is not advertised in the status line.
@@ -264,15 +267,13 @@ class MultiPaneConsole:
 
                 self._old_stdin_mode = mode.value
 
-                # Leave Quick Edit enabled. Classic cmd.exe uses Quick Edit
-                # for the familiar white drag-selection region. Mouse wheel
-                # pane scrolling is handled by ANSI mouse reporting while the
-                # application is in SCROLL MODE.
+                # Start in app-owned mouse mode. Quick Edit is enabled only
+                # when MultiPaneConsole enters SELECT MODE.
                 new_mode = mode.value
                 new_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT
                 new_mode |= ENABLE_MOUSE_INPUT
                 new_mode |= ENABLE_EXTENDED_FLAGS
-                new_mode |= ENABLE_QUICK_EDIT_MODE
+                new_mode &= ~ENABLE_QUICK_EDIT_MODE
 
                 kernel32.SetConsoleMode(handle, new_mode)
             except Exception:
@@ -317,6 +318,7 @@ class MultiPaneConsole:
         # Quick Edit is a Windows console feature.  On non-Windows platforms
         # the m key is deliberately disabled/ignored.
         self._select_mode_supported = os.name == "nt"
+        self._in_alternate_screen = False
 
     # ------------------------------------------------------------------
     # Main loop
@@ -353,15 +355,24 @@ class MultiPaneConsole:
         finally:
             self.running = False
 
+            # First give the terminal mouse back and discard queued wheel events
+            # before cmd.exe regains control of the prompt.
+            self.disable_mouse_reporting()
+            self.flush_console_input()
+            self.drain_available_windows_keyboard_chars()
+
             for pane in started_panes:
                 pane.terminate()
             for pane in started_panes:
                 pane.kill_if_needed()
 
             self.disable_mouse_reporting()
+            self.flush_console_input()
             self.show_cursor()
-            # This variant does not use the alternate screen; leave the panes
-            # visible in the normal console buffer on exit.
+            self.enable_windows_quick_edit_selection_mode()
+            if self._in_alternate_screen:
+                self.leave_alternate_screen()
+                self._in_alternate_screen = False
             self.move_cursor(1, self.terminal_size().lines)
             print()
 
@@ -423,31 +434,46 @@ class MultiPaneConsole:
             self.enter_select_mode()
 
     def enter_select_mode(self) -> None:
-        """Pause repainting and give the mouse back to classic Windows Quick Edit."""
+        """Freeze the panes in the normal buffer and enable classic Quick Edit."""
         self._select_mode = True
         self._mouse_enabled = False
 
-        # Important: do NOT leave the alternate screen here. This cmd.exe
-        # variant never enters the alternate screen in the first place, so the
-        # pane text remains visible in the normal console buffer for Quick Edit.
+        # Stop terminal mouse reporting first.  Then flush any wheel escape
+        # sequences that may already be queued so they cannot reach cmd.exe.
         self.disable_mouse_reporting()
+        self.flush_console_input()
+        self.drain_available_windows_keyboard_chars()
         self.show_cursor()
+
+        # Leave the alternate screen used for reliable pane scrolling.  cmd.exe
+        # can only Quick Edit-select text that is in the normal console buffer,
+        # so immediately redraw a frozen snapshot of the panes there.
+        if self._in_alternate_screen:
+            self.leave_alternate_screen()
+            self._in_alternate_screen = False
+
         self.enable_windows_quick_edit_selection_mode()
-        self.draw_status_line(self.terminal_size().lines, self.terminal_size().columns)
+        self.clear_screen()
+        self.render()
 
     def enter_scroll_mode(self, *, initial: bool) -> None:
-        """Return to the app-owned pane-scrolling display."""
+        """Return to app-owned pane scrolling in the alternate screen."""
         self._select_mode = False
         self._mouse_enabled = True
 
+        # Quick Edit and VT mouse reporting are not reliable together.  In
+        # SCROLL MODE the app owns the mouse; in SELECT MODE cmd.exe owns it.
         self.enable_windows_scroll_input_mode()
+        self.flush_console_input()
+        self.drain_available_windows_keyboard_chars()
+
+        if not self._in_alternate_screen:
+            self.enter_alternate_screen()
+            self._in_alternate_screen = True
+
         self.hide_cursor()
         self.enable_mouse_reporting()
-
-        # Deliberately draw into the normal console buffer, not the alternate
-        # screen, so the visible pane text can be selected by cmd.exe Quick Edit.
-        if initial:
-            self.clear_screen()
+        self.clear_screen()
         self.render()
 
     def handle_mouse_event(self, *, button: int, x: int, y: int, pressed: bool) -> None:
@@ -682,12 +708,16 @@ class MultiPaneConsole:
 
     @staticmethod
     def disable_mouse_reporting() -> None:
-        MultiPaneConsole.write("\x1b[?1006l")
-        MultiPaneConsole.write("\x1b[?1000l")
+        # Disable common terminal mouse tracking modes defensively.
+        MultiPaneConsole.write("\x1b[?1006l")  # SGR extended coordinates
+        MultiPaneConsole.write("\x1b[?1015l")  # urxvt extended coordinates
+        MultiPaneConsole.write("\x1b[?1003l")  # any-event tracking
+        MultiPaneConsole.write("\x1b[?1002l")  # button-event tracking
+        MultiPaneConsole.write("\x1b[?1000l")  # basic button tracking
 
     @staticmethod
     def enable_windows_scroll_input_mode() -> None:
-        """Prefer VT mouse reporting while keeping Quick Edit available."""
+        """Make VT mouse reporting reliable: app owns mouse, Quick Edit is off."""
         if os.name != "nt":
             return
 
@@ -709,7 +739,10 @@ class MultiPaneConsole:
             new_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT
             new_mode |= ENABLE_MOUSE_INPUT
             new_mode |= ENABLE_EXTENDED_FLAGS
-            new_mode |= ENABLE_QUICK_EDIT_MODE
+            # Important: Quick Edit competes with VT mouse reporting.  If it
+            # remains on in SCROLL MODE, some wheel events can be handled by
+            # cmd.exe/conhost instead of this app and the original prompt moves.
+            new_mode &= ~ENABLE_QUICK_EDIT_MODE
 
             kernel32.SetConsoleMode(handle, new_mode)
         except Exception:
@@ -742,6 +775,38 @@ class MultiPaneConsole:
             new_mode |= ENABLE_QUICK_EDIT_MODE
 
             kernel32.SetConsoleMode(handle, new_mode)
+        except Exception:
+            pass
+
+
+    @staticmethod
+    def flush_console_input() -> None:
+        """Flush pending Windows console input events so mouse-wheel events do not leak."""
+        if os.name != "nt":
+            return
+
+        try:
+            kernel32 = ctypes.windll.kernel32
+            STD_INPUT_HANDLE = -10
+            handle = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+            kernel32.FlushConsoleInputBuffer(handle)
+        except Exception:
+            pass
+
+    @staticmethod
+    def drain_available_windows_keyboard_chars() -> None:
+        """Drain any pending msvcrt characters, including queued VT mouse sequences."""
+        if os.name != "nt":
+            return
+
+        try:
+            import msvcrt
+        except ImportError:
+            return
+
+        try:
+            while msvcrt.kbhit():
+                msvcrt.getwch()
         except Exception:
             pass
 
