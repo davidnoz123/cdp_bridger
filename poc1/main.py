@@ -55,12 +55,12 @@ def main() -> int:
 
     panes = [
         MultiPaneConsole.PaneProcess(
-            title="Cloud Server",
+            title="Our Remote Server",
             command=_script("cloud_server.py"),
             max_lines=2000,
         ),
         MultiPaneConsole.PaneProcess(
-            title="Target Server + CDP Browser",
+            title="User Account + CDP Browser",
             command=_script("target_server.py"),
             max_lines=2000,
         ),

@@ -52,6 +52,8 @@ CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 CLIENTS_LOCK = threading.Lock()
 JOBS_LOCK = threading.Lock()
 
+dummy_remote_site_name = "Our Remote"
+
 
 def now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
@@ -137,7 +139,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             with CLIENTS_LOCK:
                 connected = len(CLIENTS)
             body = f"""
-<h1>Fake Cloud Server</h1>
+<h1>{dummy_remote_site_name} Server</h1>
 <p>This pretends to be your web app / cloud job server.</p>
 <div class="box">
   <form method="post" action="/create-demo-job">
@@ -155,7 +157,7 @@ class CloudHandler(BaseHTTPRequestHandler):
   <li><code>GET /api/results</code> &mdash; inspect all results</li>
 </ul>
 """
-            self.send_html("Fake Cloud", body)
+            self.send_html(dummy_remote_site_name, body)
             return
 
         if path == "/api/events":
@@ -259,7 +261,7 @@ class CloudHandler(BaseHTTPRequestHandler):
 def main():
     httpd = ThreadingHTTPServer((HOST, PORT), CloudHandler)
     base_url = f"http://{HOST}:{PORT}/"
-    print(f"Fake cloud server running at {base_url}")
+    print(f"{dummy_remote_site_name} server running at {base_url}")
     print(f"SSE stream available at http://{HOST}:{PORT}/api/events")
 
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)

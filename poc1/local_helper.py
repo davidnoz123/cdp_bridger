@@ -357,7 +357,7 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
 def main() -> None:
     print("""
 ╔════════════════════════════════════════════════════╗
-║       NIELSOLN LOCAL HELPER - SSE + POST POC       ║
+║   Local Python Bridge POC - SSE (down) + POST (up) ║
 ╚════════════════════════════════════════════════════╝
 Cloud:  http://127.0.0.1:8001
 Events: http://127.0.0.1:8001/api/events

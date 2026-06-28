@@ -29,6 +29,8 @@ PORT = 8002
 SESSION_COOKIE_NAME = "target_session"
 SESSION_COOKIE_VALUE = "demo-user-session"
 
+dummy_target_site_name = "ChatGPT/Claude/Gemini"
+
 
 def html_page(title: str, body: str) -> bytes:
     return f"""<!doctype html>
@@ -80,8 +82,8 @@ class TargetHandler(BaseHTTPRequestHandler):
 
         if path == "/":
             status = "logged in" if self.is_logged_in() else "not logged in"
-            self.send_html("Fake Target", f"""
-<h1>Fake Target Website</h1>
+            self.send_html(f"{dummy_target_site_name} Target", f"""
+<h1>{dummy_target_site_name} Target Website</h1>
 <p>This server pretends to be a third-party website.</p>
 <p>Status: <strong>{status}</strong></p>
 <ul>
@@ -94,9 +96,9 @@ class TargetHandler(BaseHTTPRequestHandler):
 
         if path == "/login":
             self.send_html(
-                "Logged in",
-                """
-<h1>Logged in</h1>
+                f"{dummy_target_site_name} Logged in",
+                f"""
+<h1>{dummy_target_site_name} Logged in</h1>
 <p>A demo session cookie has been set in this browser profile.</p>
 <p><a href="/account">Go to account page</a></p>
 """,
@@ -108,9 +110,9 @@ class TargetHandler(BaseHTTPRequestHandler):
 
         if path == "/logout":
             self.send_html(
-                "Logged out",
-                """
-<h1>Logged out</h1>
+                f"{dummy_target_site_name} Logged out",
+                f"""
+<h1>{dummy_target_site_name} Logged out</h1>
 <p>The demo session cookie has been cleared.</p>
 <p><a href="/">Home</a></p>
 """,
@@ -122,15 +124,15 @@ class TargetHandler(BaseHTTPRequestHandler):
 
         if path == "/account":
             if not self.is_logged_in():
-                self.send_html("Not logged in", """
-<h1>Not logged in</h1>
+                self.send_html(f"{dummy_target_site_name} Not logged in", f"""
+<h1>{dummy_target_site_name} Not logged in</h1>
 <p>The account page requires the demo browser session cookie.</p>
 <p><a href="/login">Login</a></p>
 """, status=401)
                 return
 
-            self.send_html("Fake Account", """
-<h1>Fake Account Page</h1>
+            self.send_html(f"{dummy_target_site_name} Account", f"""
+<h1>{dummy_target_site_name} Account Page</h1>
 <div class="box" id="account-data">
   <p><strong>Account holder:</strong> Demo User</p>
   <p><strong>Plan:</strong> Flower Delivery Pro</p>
@@ -187,7 +189,7 @@ def main():
     httpd = ThreadingHTTPServer((HOST, PORT), TargetHandler)
     
     base_address = f"http://{HOST}:{PORT}/"
-    print(f"Fake target website running at {base_address}")
+    print(f"{dummy_target_site_name} target website running at {base_address}")
 
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
