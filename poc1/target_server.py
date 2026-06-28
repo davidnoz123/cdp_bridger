@@ -195,10 +195,9 @@ def main():
     login_url = f"{base_address}login"
     account_url = f"{base_address}account"
 
+    # Chrome is guaranteed to be running by main.py; attach to it.
     try:
-        print(f"Launching CDP browser for website running at {base_address} ...")
         chrome = ChromeCdpLauncher.launch(reuse_existing_if_available=True)
-        print(f"CDP browser ready at http://{chrome.host}:{chrome.port}")
 
         # Avoid duplicate tabs if the account page is already open from a previous run.
         existing = [
@@ -212,31 +211,23 @@ def main():
             print(f"Opening login page: {login_url}")
             chrome.open_url_via_cdp(login_url)
 
-            # Wait until Chrome has actually navigated to the login URL.
-            # The URL only appears in list_targets() after navigation commits,
-            # which means the response headers (including Set-Cookie) are already
-            # processed — no arbitrary sleep needed.
+            # Wait until Chrome has committed the login navigation before
+            # proceeding — the URL only appears in list_targets() after the
+            # response headers (including Set-Cookie) have been processed.
             login_tab = _wait_for_tab(chrome, login_url)
             if login_tab is None:
                 raise ChromeCdpError("Login tab did not appear within timeout")
 
-            if False:
-                # Navigate the same tab to the account page instead of opening a
-                # second tab — eliminates both the extra tab and the cookie race.
-                ws_url = login_tab.get("webSocketDebuggerUrl")
-                if not ws_url:
-                    raise ChromeCdpError("Login tab has no webSocketDebuggerUrl")
-                print(f"Navigating to account page: {account_url}")
-                _navigate_tab_to(ws_url, account_url)
-                print("Browser ready. Account tab is open and logged in.")
-                
+            # Navigate the same tab to the account page to avoid an extra tab
+            # and any cookie race.
+            ws_url = login_tab.get("webSocketDebuggerUrl")
+            if not ws_url:
+                raise ChromeCdpError("Login tab has no webSocketDebuggerUrl")
+            print(f"Navigating to account page: {account_url}")
+            _navigate_tab_to(ws_url, account_url)
+            print("Account tab ready.")
     except ChromeCdpError as e:
-        print(f"CDP browser launch failed: {e}", file=sys.stderr)
-        print(
-            "Start Chrome manually with --remote-debugging-port=9222 "
-            "and a dedicated --user-data-dir (not your default profile).",
-            file=sys.stderr,
-        )
+        print(f"Could not open target tabs: {e}", file=sys.stderr)
 
     try:
         server_thread.join()

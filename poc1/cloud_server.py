@@ -31,9 +31,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 import json
 import queue
+import sys
 import threading
 import time
 from typing import Any
+
+from cdp_tools import ChromeCdpLauncher, ChromeCdpError
 
 HOST = "127.0.0.1"
 PORT = 8001
@@ -255,9 +258,33 @@ class CloudHandler(BaseHTTPRequestHandler):
 
 def main():
     httpd = ThreadingHTTPServer((HOST, PORT), CloudHandler)
-    print(f"Fake cloud server running at http://{HOST}:{PORT}/")
+    base_url = f"http://{HOST}:{PORT}/"
+    print(f"Fake cloud server running at {base_url}")
     print(f"SSE stream available at http://{HOST}:{PORT}/api/events")
-    httpd.serve_forever()
+
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server_thread.start()
+
+    # Chrome is guaranteed to be running by main.py; attach to it.
+    try:
+        chrome = ChromeCdpLauncher.launch(reuse_existing_if_available=True)
+        existing = [
+            t for t in chrome.list_targets()
+            if t.get("type") == "page" and str(t.get("url", "")).startswith(base_url)
+        ]
+        if existing:
+            print(f"Cloud UI tab already open: {existing[0].get('url')}")
+        else:
+            print(f"Opening cloud UI: {base_url}")
+            chrome.open_url_via_cdp(base_url)
+    except ChromeCdpError as e:
+        print(f"Could not open cloud UI tab: {e}", file=sys.stderr)
+
+    try:
+        server_thread.join()
+    except KeyboardInterrupt:
+        print("Stopping...")
+        httpd.shutdown()
 
 
 if __name__ == "__main__":
