@@ -62,7 +62,7 @@ dummy_remote_site_name = "Our Remote"
 # The cloud server is allowed to ask for a capture from this demo target origin,
 # but it deliberately does not choose an exact page path. The local helper
 # finds the currently open target page under this origin.
-TARGET_ALLOWED_URL_PREFIX = "http://127.0.0.1:8002/"
+TARGET_ALLOWED_URL_PREFIX = ["http://127.0.0.1:8002/", "https://chatgpt.com/"]
 CAPTURE_JOB_TYPE = "capture_current_page_from_target_origin"
 
 

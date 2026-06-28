@@ -56,7 +56,15 @@ CDP_BASE = "http://127.0.0.1:9222"
 ALLOWED_JOB_TYPE = "capture_current_page_from_target_origin"
 # Local safety policy: the cloud may only request captures from this demo target origin.
 # The exact path/page is chosen locally by inspecting the currently open target tabs.
-ALLOWED_TARGET_PREFIX = "http://127.0.0.1:8002/"
+# May be a single string or a list of strings.
+ALLOWED_TARGET_PREFIX: str | list[str] = ["http://127.0.0.1:8002/", "https://chatgpt.com/"]
+
+
+def _as_prefix_list(val: str | list[str]) -> list[str]:
+    """Normalise a prefix value that is either a string or a list of strings."""
+    if isinstance(val, list):
+        return [str(p) for p in val]
+    return [str(val)]
 
 
 def log(msg: str) -> None:
@@ -301,20 +309,22 @@ def page_snapshot(tab: dict[str, Any]) -> dict[str, Any]:
         return json.loads(raw)
 
 
-def find_target_tab(allowed_prefix: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+def find_target_tab(allowed_prefixes: str | list[str]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     """Find the open target page to capture.
 
-    The cloud job only supplies an allowed URL prefix. The local helper chooses
-    a page target under that prefix. If exactly one target page is open, use it.
-    If several are open, prefer one whose document.visibilityState is visible;
-    otherwise use the first matching page and include diagnostics in the result.
+    The cloud job only supplies an allowed URL prefix (or list of prefixes). The
+    local helper chooses a page target whose URL starts with any of those prefixes.
+    If exactly one target page is open, use it. If several are open, prefer one
+    whose document.visibilityState is visible; otherwise use the first matching
+    page and include diagnostics in the result.
     """
+    prefix_list = _as_prefix_list(allowed_prefixes)
     candidates = []
     for tab in list_cdp_tabs():
         if tab.get("type") != "page":
             continue
         url = str(tab.get("url", ""))
-        if url.startswith(allowed_prefix):
+        if any(url.startswith(p) for p in prefix_list):
             candidates.append(tab)
 
     inspected: list[dict[str, Any]] = []
@@ -347,8 +357,14 @@ def capture_visible_text(tab: dict[str, Any]) -> dict[str, Any]:
     return page_snapshot(tab)
 
 
-def requested_allowed_prefix(job: dict[str, Any]) -> str:
-    return str(job.get("allowed_url_prefix") or ALLOWED_TARGET_PREFIX)
+def requested_allowed_prefixes(job: dict[str, Any]) -> list[str]:
+    """Return the effective list of allowed URL prefixes for this job.
+
+    The job may supply ``allowed_url_prefix`` as a string or a list of strings.
+    Falls back to the local ``ALLOWED_TARGET_PREFIX`` constant (also str or list).
+    """
+    raw = job.get("allowed_url_prefix") or ALLOWED_TARGET_PREFIX
+    return _as_prefix_list(raw)
 
 
 def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
@@ -359,11 +375,13 @@ def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
     if job.get("type") != ALLOWED_JOB_TYPE:
         return False, f"unsupported job type {job.get('type')!r}"
 
-    # The cloud may narrow the allowed URL prefix, but it may not broaden it
-    # outside the local helper's hard-coded safety policy.
-    prefix = requested_allowed_prefix(job)
-    if not prefix.startswith(ALLOWED_TARGET_PREFIX):
-        return False, f"target prefix not allowed by local helper policy: {prefix!r}"
+    # The cloud may narrow the allowed URL prefix(es), but it may not broaden
+    # them outside the local helper's hard-coded safety policy.
+    allowed_list = _as_prefix_list(ALLOWED_TARGET_PREFIX)
+    prefixes = requested_allowed_prefixes(job)
+    for p in prefixes:
+        if not any(p.startswith(a) for a in allowed_list):
+            return False, f"target prefix not allowed by local helper policy: {p!r}"
     return True, "allowed"
 
 
@@ -372,13 +390,13 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     if not allowed:
         return {"ok": False, "job_id": job.get("job_id"), "error": reason}
 
-    prefix = requested_allowed_prefix(job)
-    tab, inspected_tabs = find_target_tab(prefix)
+    prefixes = requested_allowed_prefixes(job)
+    tab, inspected_tabs = find_target_tab(prefixes)
     if not tab:
         return {
             "ok": False,
             "job_id": job.get("job_id"),
-            "error": f"No open target page found under {prefix!r}; open a target page in the CDP Chrome profile.",
+            "error": f"No open target page found under {prefixes!r}; open a target page in the CDP Chrome profile.",
             "inspected_target_tabs": inspected_tabs,
         }
 
