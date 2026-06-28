@@ -28,7 +28,7 @@ This remains deliberately local and standard-library only.
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 import json
 import queue
 import sys
@@ -64,6 +64,15 @@ dummy_remote_site_name = "Our Remote"
 # finds the currently open target page under this origin.
 TARGET_ALLOWED_URL_PREFIX = ["http://127.0.0.1:8002/", "https://chatgpt.com/"]
 CAPTURE_JOB_TYPE = "capture_current_page_from_target_origin"
+
+HELPER_STATUS: dict[str, Any] = {}
+HELPER_STATUS_LOCK = threading.Lock()
+
+
+def as_prefix_list(value: str | list[str]) -> list[str]:
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    return [str(value)]
 
 
 def now() -> str:
@@ -155,6 +164,12 @@ class CloudHandler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
+    def read_form(self) -> dict[str, str]:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8", errors="replace")
+        parsed = parse_qs(raw, keep_blank_values=True)
+        return {k: v[-1] if v else "" for k, v in parsed.items()}
+
     def send_json(self, obj: dict[str, Any], status: int = 200):
         data = json.dumps(obj, indent=2, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -180,32 +195,134 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/":
+            target_prefixes = as_prefix_list(TARGET_ALLOWED_URL_PREFIX)
+            options_html = "\n".join(
+                f'      <option value="{p}">{p}</option>' for p in target_prefixes
+            )
+            target_prefixes_json = json.dumps(target_prefixes, ensure_ascii=False)
             with JOBS_LOCK:
                 pending = [j for j in JOBS if j.get("status") == "pending"]
-                results_json = json.dumps(RESULTS[-5:], indent=2, ensure_ascii=False)
             with CLIENTS_LOCK:
                 connected = len(CLIENTS)
+            with JOBS_LOCK:
+                results_snapshot = list(reversed(RESULTS[-20:]))
+            results_json = json.dumps(results_snapshot, indent=2, ensure_ascii=False)
+            with HELPER_STATUS_LOCK:
+                helper_status_snapshot = dict(HELPER_STATUS)
+            helper_status_json = json.dumps(helper_status_snapshot, ensure_ascii=False)
             body = f"""
 <h1>{dummy_remote_site_name} Server</h1>
 <p>This pretends to be your web app / cloud job server.</p>
 <div class="box">
   <form method="post" action="/create-demo-job">
-    <button type="submit">Create demo capture job</button>
+    <label for="allowed-url-prefix"><strong>Capture target</strong></label><br>
+    <select id="allowed-url-prefix" name="allowed_url_prefix" style="font-size:15px;padding:4px 8px;margin:8px 0;">
+{options_html}
+    </select>
+    <p id="helper-prefix-status" style="margin:6px 0;"></p>
+    <button type="submit">Create capture job</button>
   </form>
 </div>
 <p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
 <p><strong>Pending jobs:</strong> {len(pending)}</p>
-<h2>Recent results <small id="results-status" style="font-weight:normal;"></small></h2>
-<pre id="results-box">{results_json}</pre>
+<section class="box">
+  <h2>Latest capture</h2>
+  <div id="latest-friendly">No capture yet.</div>
+</section>
+<h2>Raw results JSON <small id="results-status" style="font-weight:normal;"></small></h2>
+<pre id="results-box"></pre>
 <script>
 (function () {{
-    var box = document.getElementById('results-box');
-    var status = document.getElementById('results-status');
-    var results = [];
-    try {{ results = JSON.parse(box.textContent) || []; }} catch (e) {{}}
-    function render() {{
-        box.textContent = JSON.stringify(results.slice(-5), null, 2);
+    var results = {results_json};
+    var helperStatus = {helper_status_json};
+    var targetPrefixes = {target_prefixes_json};
+
+    function escapeHtml(s) {{
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }}
+
+    function selectedPrefix() {{
+        return document.getElementById('allowed-url-prefix').value;
+    }}
+
+    function helperSupportsPrefix(prefix) {{
+        if (!helperStatus || !Array.isArray(helperStatus.allowed_target_prefixes)) {{
+            return null;
+        }}
+        return helperStatus.allowed_target_prefixes.indexOf(prefix) !== -1;
+    }}
+
+    function renderHelperPrefixStatus() {{
+        var el = document.getElementById('helper-prefix-status');
+        var prefix = selectedPrefix();
+        var supported = helperSupportsPrefix(prefix);
+        if (supported === null) {{
+            el.textContent = 'No helper capability report received yet.';
+            el.style.color = '#a60';
+        }} else if (supported) {{
+            el.textContent = '\u2713 Local helper supports this target.';
+            el.style.color = '#080';
+        }} else {{
+            el.textContent = '\u26a0 Warning: local helper does not report support for this target. The job will likely fail policy validation.';
+            el.style.color = '#c00';
+        }}
+    }}
+
+    function renderLatestFriendly() {{
+        var el = document.getElementById('latest-friendly');
+        if (!results.length) {{
+            el.textContent = 'No capture yet.';
+            return;
+        }}
+        var r = results[0];
+        if (!r.ok) {{
+            el.innerHTML =
+                '<p><strong>Status:</strong> <span style="color:#c00">Failed</span></p>' +
+                '<p><strong>Job:</strong> ' + escapeHtml(r.job_id || '') + '</p>' +
+                '<p><strong>Error:</strong> ' + escapeHtml(r.error || '') + '</p>';
+            return;
+        }}
+        var preview = (r.visible_text || '').slice(0, 500);
+        var areasHtml = '';
+        if (r.areas && typeof r.areas === 'object') {{
+            var keys = Object.keys(r.areas);
+            if (keys.length) {{
+                areasHtml = '<h3>Textarea values</h3><ul>' +
+                    keys.map(function (k) {{
+                        return '<li><strong>' + escapeHtml(k) + ':</strong> ' +
+                               escapeHtml((r.areas[k] || '').slice(0, 200)) + '</li>';
+                    }}).join('') + '</ul>';
+            }}
+        }}
+        el.innerHTML =
+            '<p><strong>Status:</strong> <span style="color:#080">OK</span></p>' +
+            '<p><strong>Job:</strong> ' + escapeHtml(r.job_id || '') + '</p>' +
+            '<p><strong>Captured URL:</strong> ' + escapeHtml(r.captured_from_url || '') + '</p>' +
+            '<p><strong>Title:</strong> ' + escapeHtml(r.captured_title || '') + '</p>' +
+            '<p><strong>Received:</strong> ' + escapeHtml(r.received_at || '') + '</p>' +
+            '<h3>Preview</h3><pre>' + escapeHtml(preview) + '</pre>' +
+            areasHtml;
+    }}
+
+    function renderRawResults() {{
+        document.getElementById('results-box').textContent =
+            JSON.stringify(results.slice(0, 20), null, 2);
+    }}
+
+    function render() {{
+        renderLatestFriendly();
+        renderRawResults();
+    }}
+
+    render();
+    renderHelperPrefixStatus();
+    document.getElementById('allowed-url-prefix').addEventListener('change', renderHelperPrefixStatus);
+
+    var status = document.getElementById('results-status');
     var es = new EventSource('/api/browser-events');
     es.addEventListener('job_sent', function (e) {{
         var d = JSON.parse(e.data);
@@ -213,10 +330,14 @@ class CloudHandler(BaseHTTPRequestHandler):
         status.textContent = d.job_id + ' ' + (d.delivery || 'sent') + ' at ' + d.sent_at + ' \u2014 waiting for result\u2026';
     }});
     es.addEventListener('result', function (e) {{
-        results.push(JSON.parse(e.data));
+        results.unshift(JSON.parse(e.data));
         render();
         status.style.color = '#080';
         status.textContent = 'result received ' + new Date().toLocaleTimeString();
+    }});
+    es.addEventListener('helper_status', function (e) {{
+        helperStatus = JSON.parse(e.data);
+        renderHelperPrefixStatus();
     }});
     es.onerror = function () {{
         status.style.color = '#c00';
@@ -228,6 +349,7 @@ class CloudHandler(BaseHTTPRequestHandler):
 <ul>
   <li><code>GET /api/events</code> &mdash; SSE stream for cloud-to-helper jobs</li>
   <li><code>POST /api/result</code> &mdash; helper-to-cloud result upload</li>
+  <li><code>POST /api/helper-status</code> &mdash; helper capability reporting</li>
   <li><code>GET /api/results</code> &mdash; inspect all results</li>
 </ul>
 """
@@ -253,6 +375,18 @@ class CloudHandler(BaseHTTPRequestHandler):
             with JOBS_LOCK:
                 results_snapshot = list(RESULTS)
             self.send_json({"results": results_snapshot})
+            return
+
+        if path == "/api/helper-status":
+            with CLIENTS_LOCK:
+                connected = len(CLIENTS)
+            with HELPER_STATUS_LOCK:
+                status_snapshot = dict(HELPER_STATUS)
+            self.send_json({
+                "ok": True,
+                "connected_helpers": connected,
+                "helper_status": status_snapshot,
+            })
             return
 
         self.send_html("404", "<h1>404</h1>", status=404)
@@ -336,6 +470,16 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/create-demo-job":
+            form = self.read_form()
+            target_prefixes = as_prefix_list(TARGET_ALLOWED_URL_PREFIX)
+            selected_prefix = form.get("allowed_url_prefix", "").strip()
+            if selected_prefix not in target_prefixes:
+                # Fall back to first configured prefix so the form still works
+                # when JavaScript is disabled.
+                selected_prefix = target_prefixes[0] if target_prefixes else ""
+            if not selected_prefix:
+                self.send_json({"ok": False, "error": "no valid allowed_url_prefix configured"}, status=400)
+                return
             created_at = now()
             with JOBS_LOCK:
                 job = {
@@ -351,7 +495,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                     # helper finds the currently open target page under this
                     # allowed origin and captures that page.
                     "type": CAPTURE_JOB_TYPE,
-                    "allowed_url_prefix": TARGET_ALLOWED_URL_PREFIX,
+                    "allowed_url_prefix": selected_prefix,
                 }
                 NEXT_JOB_ID += 1
                 JOBS.append(job)
@@ -372,6 +516,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                 "sent_at": job.get("sent_at", job["created_at"]),
                 "delivery": delivery,
                 "connected_helpers": delivered_to_helpers,
+                "allowed_url_prefix": selected_prefix,
             })
 
             self.send_response(303)
@@ -438,6 +583,21 @@ class CloudHandler(BaseHTTPRequestHandler):
                 "job_status": "complete" if result.get("ok") else "failed",
                 "accepted_at": received_at,
             })
+            return
+
+        if path == "/api/helper-status":
+            try:
+                status_data = self.read_json()
+            except Exception as exc:
+                self.send_json({"ok": False, "error": "invalid JSON", "detail": repr(exc)}, status=400)
+                return
+            received_at = now()
+            status_data["received_at"] = received_at
+            with HELPER_STATUS_LOCK:
+                HELPER_STATUS.clear()
+                HELPER_STATUS.update(status_data)
+            broadcast_to_browsers("helper_status", dict(HELPER_STATUS))
+            self.send_json({"ok": True, "received_at": received_at})
             return
 
         self.send_json({"ok": False, "error": "not found"}, status=404)

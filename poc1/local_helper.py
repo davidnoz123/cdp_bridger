@@ -414,6 +414,24 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def helper_allowed_prefixes() -> list[str]:
+    return _as_prefix_list(ALLOWED_TARGET_PREFIX)
+
+
+def post_helper_status() -> None:
+    payload = {
+        "helper_id": "local-helper-1",
+        "reported_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "allowed_job_type": ALLOWED_JOB_TYPE,
+        "allowed_target_prefixes": helper_allowed_prefixes(),
+    }
+    try:
+        response = post_json(f"{CLOUD_BASE}/api/helper-status", payload)
+        log(f"reported helper capabilities: {response}")
+    except Exception as exc:
+        log(f"failed to report helper capabilities: {exc!r}")
+
+
 def handle_sse_event(event_type: str, data_text: str) -> None:
     if event_type == "hello":
         log(f"connected to SSE stream: {data_text}")
@@ -437,7 +455,8 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
         else:
             log(f"job {job.get('job_id')} failed during processing: {e!r}")
         result = {"ok": False, "job_id": job.get("job_id"), "error": repr(e)}
-    result["allowed_target_prefix"] = _as_prefix_list(ALLOWED_TARGET_PREFIX)
+    result["local_helper_allowed_target_prefixes"] = _as_prefix_list(ALLOWED_TARGET_PREFIX)
+    result["allowed_target_prefix"] = result["local_helper_allowed_target_prefixes"]
     try:
         response = post_json(f"{CLOUD_BASE}/api/result", result)
         log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')} cloud_ack={response}")
@@ -463,6 +482,7 @@ Press Ctrl+C to stop.
 
     while True:
         try:
+            post_helper_status()
             log("opening SSE stream")
             for event_type, data_text in iter_sse_events(f"{CLOUD_BASE}/api/events"):
                 handle_sse_event(event_type, data_text)
