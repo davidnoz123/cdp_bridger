@@ -52,6 +52,11 @@ CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 CLIENTS_LOCK = threading.Lock()
 JOBS_LOCK = threading.Lock()
 
+# Separate queue list for browser EventSource connections.  Browsers receive
+# job_sent and result events; helpers receive job events.
+BROWSER_CLIENTS: list[queue.Queue[dict[str, Any]]] = []
+BROWSER_CLIENTS_LOCK = threading.Lock()
+
 dummy_remote_site_name = "Our Remote"
 
 
@@ -96,11 +101,29 @@ def broadcast(event_type: str, data: dict[str, Any]) -> None:
         q.put(message)
 
 
+def broadcast_to_browsers(event_type: str, data: dict[str, Any]) -> None:
+    """Send an event to all connected browser EventSource streams."""
+    message = {"event": event_type, "data": data}
+    with BROWSER_CLIENTS_LOCK:
+        clients = list(BROWSER_CLIENTS)
+    for q in clients:
+        q.put(message)
+
+
 class CloudHandler(BaseHTTPRequestHandler):
     server_version = "FakeCloudSSE/0.2"
 
     def log_message(self, fmt, *args):
         print(f"[cloud] {self.address_string()} - {fmt % args}")
+
+    def handle_error(self, request, client_address):
+        # Suppress noisy tracebacks for routine connection-reset events that
+        # happen whenever a browser closes a keep-alive or SSE connection.
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            return
+        import traceback
+        traceback.print_exc()
 
     def read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -148,8 +171,35 @@ class CloudHandler(BaseHTTPRequestHandler):
 </div>
 <p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
 <p><strong>Pending jobs:</strong> {len(pending)}</p>
-<h2>Recent results</h2>
-<pre>{results_json}</pre>
+<h2>Recent results <small id="results-status" style="font-weight:normal;"></small></h2>
+<pre id="results-box">{results_json}</pre>
+<script>
+(function () {{
+    var box = document.getElementById('results-box');
+    var status = document.getElementById('results-status');
+    var results = [];
+    try {{ results = JSON.parse(box.textContent) || []; }} catch (e) {{}}
+    function render() {{
+        box.textContent = JSON.stringify(results.slice(-5), null, 2);
+    }}
+    var es = new EventSource('/api/browser-events');
+    es.addEventListener('job_sent', function (e) {{
+        var d = JSON.parse(e.data);
+        status.style.color = '#a60';
+        status.textContent = d.job_id + ' sent at ' + d.sent_at + ' \u2014 waiting for result\u2026';
+    }});
+    es.addEventListener('result', function (e) {{
+        results.push(JSON.parse(e.data));
+        render();
+        status.style.color = '#080';
+        status.textContent = 'result received ' + new Date().toLocaleTimeString();
+    }});
+    es.onerror = function () {{
+        status.style.color = '#c00';
+        status.textContent = 'SSE disconnected \u2014 reconnecting\u2026';
+    }};
+}})();
+</script>
 <p>Helper API:</p>
 <ul>
   <li><code>GET /api/events</code> &mdash; SSE stream for cloud-to-helper jobs</li>
@@ -162,6 +212,10 @@ class CloudHandler(BaseHTTPRequestHandler):
 
         if path == "/api/events":
             self.handle_sse_events()
+            return
+
+        if path == "/api/browser-events":
+            self.handle_browser_sse_events()
             return
 
         # Kept as a debugging endpoint; the helper no longer uses it.
@@ -218,6 +272,33 @@ class CloudHandler(BaseHTTPRequestHandler):
                 if q in CLIENTS:
                     CLIENTS.remove(q)
 
+    def handle_browser_sse_events(self) -> None:
+        q: queue.Queue[dict[str, Any]] = queue.Queue()
+        with BROWSER_CLIENTS_LOCK:
+            BROWSER_CLIENTS.append(q)
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        try:
+            while True:
+                try:
+                    message = q.get(timeout=15)
+                    self.write_sse(message["event"], message["data"])
+                except queue.Empty:
+                    self.wfile.write(f": heartbeat {now()}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+            self.log_message("browser SSE client disconnected: %s", e)
+        finally:
+            with BROWSER_CLIENTS_LOCK:
+                if q in BROWSER_CLIENTS:
+                    BROWSER_CLIENTS.remove(q)
+
     def do_POST(self):
         global JOBS, RESULTS, NEXT_JOB_ID
         path = urlparse(self.path).path
@@ -237,6 +318,7 @@ class CloudHandler(BaseHTTPRequestHandler):
 
             # Broadcast outside the lock to avoid holding it during I/O.
             broadcast("job", job)
+            broadcast_to_browsers("job_sent", {"job_id": job["job_id"], "sent_at": job["created_at"]})
 
             self.send_response(303)
             self.send_header("Location", "/")
@@ -252,6 +334,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                     if job.get("job_id") == result.get("job_id"):
                         job["status"] = "done" if result.get("ok") else "error"
                         job["finished_at"] = now()
+            broadcast_to_browsers("result", result)
             self.send_json({"ok": True})
             return
 
