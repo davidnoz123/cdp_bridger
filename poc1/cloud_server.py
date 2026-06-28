@@ -59,6 +59,12 @@ BROWSER_CLIENTS_LOCK = threading.Lock()
 
 dummy_remote_site_name = "Our Remote"
 
+# The cloud server is allowed to ask for a capture from this demo target origin,
+# but it deliberately does not choose an exact page path. The local helper
+# finds the currently open target page under this origin.
+TARGET_ALLOWED_URL_PREFIX = "http://127.0.0.1:8002/"
+CAPTURE_JOB_TYPE = "capture_current_page_from_target_origin"
+
 
 def now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
@@ -92,22 +98,22 @@ def sse_format(event_type: str, data: dict[str, Any]) -> bytes:
     return f"event: {event_type}\n{data_lines}\n\n".encode("utf-8")
 
 
-def broadcast(event_type: str, data: dict[str, Any]) -> None:
-    """Send an event to all connected SSE helper streams."""
-    message = {"event": event_type, "data": data}
+def broadcast(event_type: str, data: dict[str, Any]) -> int:
+    """Send an event to all connected SSE helper streams and return the count."""
     with CLIENTS_LOCK:
         clients = list(CLIENTS)
     for q in clients:
-        q.put(message)
+        # Copy the payload so later JOBS mutations do not change what was queued.
+        q.put({"event": event_type, "data": dict(data)})
+    return len(clients)
 
 
 def broadcast_to_browsers(event_type: str, data: dict[str, Any]) -> None:
     """Send an event to all connected browser EventSource streams."""
-    message = {"event": event_type, "data": data}
     with BROWSER_CLIENTS_LOCK:
         clients = list(BROWSER_CLIENTS)
     for q in clients:
-        q.put(message)
+        q.put({"event": event_type, "data": dict(data)})
 
 
 class CloudHandler(BaseHTTPRequestHandler):
@@ -186,7 +192,7 @@ class CloudHandler(BaseHTTPRequestHandler):
     es.addEventListener('job_sent', function (e) {{
         var d = JSON.parse(e.data);
         status.style.color = '#a60';
-        status.textContent = d.job_id + ' sent at ' + d.sent_at + ' \u2014 waiting for result\u2026';
+        status.textContent = d.job_id + ' ' + (d.delivery || 'sent') + ' at ' + d.sent_at + ' \u2014 waiting for result\u2026';
     }});
     es.addEventListener('result', function (e) {{
         results.push(JSON.parse(e.data));
@@ -250,12 +256,20 @@ class CloudHandler(BaseHTTPRequestHandler):
             self.write_sse("hello", {"ok": True, "server_time": now(), "connected_helpers": connected})
 
             # If jobs already exist when the helper connects, push them immediately.
+            # Important: jobs stay pending until a helper actually connects.
             with JOBS_LOCK:
                 pending_jobs = [j for j in JOBS if j.get("status") == "pending"]
                 for job in pending_jobs:
                     job["status"] = "sent"
-            for job in pending_jobs:
+                    job["sent_at"] = now()
+                pending_jobs_to_send = [dict(job) for job in pending_jobs]
+            for job in pending_jobs_to_send:
                 self.write_sse("job", job)
+                broadcast_to_browsers("job_sent", {
+                    "job_id": job["job_id"],
+                    "sent_at": job.get("sent_at", job.get("created_at")),
+                    "delivery": "sent_to_reconnected_helper",
+                })
 
             while True:
                 try:
@@ -304,21 +318,42 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/create-demo-job":
+            created_at = now()
             with JOBS_LOCK:
                 job = {
                     "job_id": f"job_{NEXT_JOB_ID}",
-                    "created_at": now(),
+                    "created_at": created_at,
+                    # Keep the job pending until at least one helper has really
+                    # received it. This avoids losing jobs created before the
+                    # SSE helper stream is connected.
                     "status": "pending",
-                    "type": "capture_visible_text_from_target_tab",
-                    "allowed_url_prefix": "http://127.0.0.1:8002/account",
+                    # High-level instruction only. The cloud does not send raw
+                    # CDP commands and does not choose the exact tab. The local
+                    # helper finds the currently open target page under this
+                    # allowed origin and captures that page.
+                    "type": CAPTURE_JOB_TYPE,
+                    "allowed_url_prefix": TARGET_ALLOWED_URL_PREFIX,
                 }
                 NEXT_JOB_ID += 1
                 JOBS.append(job)
-                job["status"] = "sent"
 
             # Broadcast outside the lock to avoid holding it during I/O.
-            broadcast("job", job)
-            broadcast_to_browsers("job_sent", {"job_id": job["job_id"], "sent_at": job["created_at"]})
+            delivered_to_helpers = broadcast("job", job)
+
+            with JOBS_LOCK:
+                if delivered_to_helpers:
+                    job["status"] = "sent"
+                    job["sent_at"] = now()
+                    delivery = "sent"
+                else:
+                    delivery = "queued_waiting_for_helper"
+
+            broadcast_to_browsers("job_sent", {
+                "job_id": job["job_id"],
+                "sent_at": job.get("sent_at", job["created_at"]),
+                "delivery": delivery,
+                "connected_helpers": delivered_to_helpers,
+            })
 
             self.send_response(303)
             self.send_header("Location", "/")

@@ -53,8 +53,10 @@ from typing import Any, Iterator
 
 CLOUD_BASE = "http://127.0.0.1:8001"
 CDP_BASE = "http://127.0.0.1:9222"
-ALLOWED_JOB_TYPE = "capture_visible_text_from_target_tab"
-ALLOWED_TARGET_PREFIX = "http://127.0.0.1:8002/account"
+ALLOWED_JOB_TYPE = "capture_current_page_from_target_origin"
+# Local safety policy: the cloud may only request captures from this demo target origin.
+# The exact path/page is chosen locally by inspecting the currently open target tabs.
+ALLOWED_TARGET_PREFIX = "http://127.0.0.1:8002/"
 
 
 def log(msg: str) -> None:
@@ -270,15 +272,8 @@ def list_cdp_tabs() -> list[dict[str, Any]]:
     return data
 
 
-def find_target_tab(allowed_prefix: str) -> dict[str, Any] | None:
-    for tab in list_cdp_tabs():
-        url = str(tab.get("url", ""))
-        if url.startswith(allowed_prefix):
-            return tab
-    return None
-
-
-def capture_visible_text(tab: dict[str, Any]) -> dict[str, Any]:
+def page_snapshot(tab: dict[str, Any]) -> dict[str, Any]:
+    """Return a small, policy-safe snapshot from a CDP page target."""
     ws_url = tab.get("webSocketDebuggerUrl")
     if not ws_url:
         raise RuntimeError("target tab has no webSocketDebuggerUrl")
@@ -292,20 +287,79 @@ def capture_visible_text(tab: dict[str, Any]) -> dict[str, Any]:
         var key = el.id || String(i);
         areas[key] = el.value;
     });
-    return JSON.stringify({text: text, areas: areas});
+    return JSON.stringify({
+        url: location.href,
+        title: document.title,
+        visibility_state: document.visibilityState,
+        text: text,
+        areas: areas
+    });
 })()""",
             "returnByValue": True,
         })
-        raw = result.get("result", {}).get("value", '{"text":"","areas":{}}')
+        raw = result.get("result", {}).get("value", '{"url":"","title":"","visibility_state":"unknown","text":"","areas":{}}')
         return json.loads(raw)
+
+
+def find_target_tab(allowed_prefix: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Find the open target page to capture.
+
+    The cloud job only supplies an allowed URL prefix. The local helper chooses
+    a page target under that prefix. If exactly one target page is open, use it.
+    If several are open, prefer one whose document.visibilityState is visible;
+    otherwise use the first matching page and include diagnostics in the result.
+    """
+    candidates = []
+    for tab in list_cdp_tabs():
+        if tab.get("type") != "page":
+            continue
+        url = str(tab.get("url", ""))
+        if url.startswith(allowed_prefix):
+            candidates.append(tab)
+
+    inspected: list[dict[str, Any]] = []
+    for tab in candidates:
+        info = {
+            "id": tab.get("id"),
+            "url": tab.get("url"),
+            "title": tab.get("title"),
+            "visibility_state": "unknown",
+        }
+        try:
+            snap = page_snapshot(tab)
+            info["url"] = snap.get("url") or info["url"]
+            info["title"] = snap.get("title") or info["title"]
+            info["visibility_state"] = snap.get("visibility_state", "unknown")
+        except Exception as exc:
+            info["inspect_error"] = repr(exc)
+        inspected.append(info)
+
+    visible_ids = {item.get("id") for item in inspected if item.get("visibility_state") == "visible"}
+    visible_candidates = [tab for tab in candidates if tab.get("id") in visible_ids]
+    if visible_candidates:
+        return visible_candidates[0], inspected
+    if candidates:
+        return candidates[0], inspected
+    return None, inspected
+
+
+def capture_visible_text(tab: dict[str, Any]) -> dict[str, Any]:
+    return page_snapshot(tab)
+
+
+def requested_allowed_prefix(job: dict[str, Any]) -> str:
+    return str(job.get("allowed_url_prefix") or ALLOWED_TARGET_PREFIX)
 
 
 def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
     if job.get("type") != ALLOWED_JOB_TYPE:
-        return False, "unsupported job type"
-    prefix = str(job.get("allowed_url_prefix", ""))
-    if prefix != ALLOWED_TARGET_PREFIX:
-        return False, "target prefix not allowed by local helper policy"
+        return False, f"unsupported job type {job.get('type')!r}"
+
+    # The cloud may narrow the allowed URL prefix, but it may not broaden it
+    # outside the local helper's hard-coded safety policy.
+    prefix = requested_allowed_prefix(job)
+    if not prefix.startswith(ALLOWED_TARGET_PREFIX):
+        return False, f"target prefix not allowed by local helper policy: {prefix!r}"
     return True, "allowed"
 
 
@@ -314,23 +368,27 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     if not allowed:
         return {"ok": False, "job_id": job.get("job_id"), "error": reason}
 
-    tab = find_target_tab(ALLOWED_TARGET_PREFIX)
+    prefix = requested_allowed_prefix(job)
+    tab, inspected_tabs = find_target_tab(prefix)
     if not tab:
         return {
             "ok": False,
             "job_id": job.get("job_id"),
-            "error": "No matching target account tab found; open http://127.0.0.1:8002/account in the CDP Chrome profile.",
+            "error": f"No open target page found under {prefix!r}; open a target page in the CDP Chrome profile.",
+            "inspected_target_tabs": inspected_tabs,
         }
 
     captured = capture_visible_text(tab)
     return {
         "ok": True,
         "job_id": job.get("job_id"),
-        "captured_from_url": tab.get("url"),
-        "captured_title": tab.get("title"),
-        "visible_text": captured["text"],
-        "areas": captured["areas"],
-        "note": "Captured through local CDP from the logged-in browser tab; cookies were not read or uploaded.",
+        "captured_from_url": captured.get("url") or tab.get("url"),
+        "captured_title": captured.get("title") or tab.get("title"),
+        "captured_visibility_state": captured.get("visibility_state"),
+        "visible_text": captured.get("text", ""),
+        "areas": captured.get("areas", {}),
+        "inspected_target_tabs": inspected_tabs,
+        "note": "Captured through local CDP from an open target page selected locally by URL policy; cookies were not read or uploaded.",
     }
 
 
@@ -372,7 +430,7 @@ def main() -> None:
 Cloud:  http://127.0.0.1:8001
 Events: http://127.0.0.1:8001/api/events
 CDP:    http://127.0.0.1:9222
-Target: http://127.0.0.1:8002/account
+Target: http://127.0.0.1:8002/  (any open page under this origin)
 
 Cloud pushes jobs to this helper over SSE.
 This helper uploads results back with ordinary HTTP POST.
