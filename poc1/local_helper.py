@@ -278,17 +278,26 @@ def find_target_tab(allowed_prefix: str) -> dict[str, Any] | None:
     return None
 
 
-def capture_visible_text(tab: dict[str, Any]) -> str:
+def capture_visible_text(tab: dict[str, Any]) -> dict[str, Any]:
     ws_url = tab.get("webSocketDebuggerUrl")
     if not ws_url:
         raise RuntimeError("target tab has no webSocketDebuggerUrl")
 
     with CdpClient(ws_url) as cdp:
         result = cdp.call("Runtime.evaluate", {
-            "expression": "document.body ? document.body.innerText : ''",
+            "expression": """(function () {
+    var text = document.body ? document.body.innerText : '';
+    var areas = {};
+    document.querySelectorAll('textarea').forEach(function (el, i) {
+        var key = el.id || String(i);
+        areas[key] = el.value;
+    });
+    return JSON.stringify({text: text, areas: areas});
+})()""",
             "returnByValue": True,
         })
-        return str(result.get("result", {}).get("value", ""))
+        raw = result.get("result", {}).get("value", '{"text":"","areas":{}}')
+        return json.loads(raw)
 
 
 def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
@@ -313,13 +322,14 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
             "error": "No matching target account tab found; open http://127.0.0.1:8002/account in the CDP Chrome profile.",
         }
 
-    text = capture_visible_text(tab)
+    captured = capture_visible_text(tab)
     return {
         "ok": True,
         "job_id": job.get("job_id"),
         "captured_from_url": tab.get("url"),
         "captured_title": tab.get("title"),
-        "visible_text": text,
+        "visible_text": captured["text"],
+        "areas": captured["areas"],
         "note": "Captured through local CDP from the logged-in browser tab; cookies were not read or uploaded.",
     }
 
