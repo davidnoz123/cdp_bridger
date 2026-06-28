@@ -344,12 +344,22 @@ def find_target_tab(allowed_prefixes: str | list[str]) -> tuple[dict[str, Any] |
             info["inspect_error"] = repr(exc)
         inspected.append(info)
 
+    if not candidates:
+        return None, inspected
+
+    if len(candidates) == 1:
+        return candidates[0], inspected
+
     visible_ids = {item.get("id") for item in inspected if item.get("visibility_state") == "visible"}
     visible_candidates = [tab for tab in candidates if tab.get("id") in visible_ids]
-    if visible_candidates:
+
+    # Safety rule: do not capture an arbitrary tab when a broad prefix matches
+    # several pages. If there is exactly one visible matching tab, use it.
+    # Otherwise fail with diagnostics so the user can close tabs or choose a
+    # narrower prefix. This is much safer than silently picking the first tab.
+    if len(visible_candidates) == 1:
         return visible_candidates[0], inspected
-    if candidates:
-        return candidates[0], inspected
+
     return None, inspected
 
 
@@ -393,10 +403,19 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     prefixes = requested_allowed_prefixes(job)
     tab, inspected_tabs = find_target_tab(prefixes)
     if not tab:
+        if inspected_tabs:
+            error = (
+                f"Multiple or ambiguous target pages matched {prefixes!r}; "
+                "the helper refused to guess. Close extra matching tabs, bring exactly one matching tab to the foreground, "
+                "or choose a narrower prefix."
+            )
+        else:
+            error = f"No open target page found under {prefixes!r}; open a target page in the CDP Chrome profile."
         return {
             "ok": False,
             "job_id": job.get("job_id"),
-            "error": f"No open target page found under {prefixes!r}; open a target page in the CDP Chrome profile.",
+            "error": error,
+            "requested_allowed_url_prefixes": prefixes,
             "inspected_target_tabs": inspected_tabs,
         }
 
@@ -409,8 +428,9 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
         "captured_visibility_state": captured.get("visibility_state"),
         "visible_text": captured.get("text", ""),
         "areas": captured.get("areas", {}),
+        "requested_allowed_url_prefixes": prefixes,
         "inspected_target_tabs": inspected_tabs,
-        "note": "Captured through local CDP from an open target page selected locally by URL policy; cookies were not read or uploaded.",
+        "note": "Captured through local CDP from an unambiguous open target page selected locally by URL policy; cookies were not read or uploaded.",
     }
 
 

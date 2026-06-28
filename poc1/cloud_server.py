@@ -28,7 +28,7 @@ This remains deliberately local and standard-library only.
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 import json
 import queue
 import sys
@@ -195,10 +195,29 @@ class CloudHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/":
+            parsed_url = urlparse(self.path)
+            query = parse_qs(parsed_url.query, keep_blank_values=True)
             target_prefixes = as_prefix_list(TARGET_ALLOWED_URL_PREFIX)
-            options_html = "\n".join(
-                f'      <option value="{p}">{p}</option>' for p in target_prefixes
+            requested_selected_prefix = (query.get("selected_prefix") or [""])[-1]
+            selected_prefix = (
+                requested_selected_prefix
+                if requested_selected_prefix in target_prefixes
+                else (target_prefixes[0] if target_prefixes else "")
             )
+
+            def option_html(prefix: str) -> str:
+                selected = " selected" if prefix == selected_prefix else ""
+                # These prefixes are controlled by this demo config, but keep the
+                # HTML generation safe and boring.
+                escaped = (
+                    prefix.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace('"', "&quot;")
+                )
+                return f'      <option value="{escaped}"{selected}>{escaped}</option>'
+
+            options_html = "\n".join(option_html(p) for p in target_prefixes)
             target_prefixes_json = json.dumps(target_prefixes, ensure_ascii=False)
             with JOBS_LOCK:
                 pending = [j for j in JOBS if j.get("status") == "pending"]
@@ -327,7 +346,8 @@ class CloudHandler(BaseHTTPRequestHandler):
     es.addEventListener('job_sent', function (e) {{
         var d = JSON.parse(e.data);
         status.style.color = '#a60';
-        status.textContent = d.job_id + ' ' + (d.delivery || 'sent') + ' at ' + d.sent_at + ' \u2014 waiting for result\u2026';
+        status.textContent = d.job_id + ' ' + (d.delivery || 'sent') + ' at ' + d.sent_at +
+            ' for ' + (d.allowed_url_prefix || selectedPrefix()) + ' \u2014 waiting for result\u2026';
     }});
     es.addEventListener('result', function (e) {{
         results.unshift(JSON.parse(e.data));
@@ -473,12 +493,16 @@ class CloudHandler(BaseHTTPRequestHandler):
             form = self.read_form()
             target_prefixes = as_prefix_list(TARGET_ALLOWED_URL_PREFIX)
             selected_prefix = form.get("allowed_url_prefix", "").strip()
-            if selected_prefix not in target_prefixes:
-                # Fall back to first configured prefix so the form still works
-                # when JavaScript is disabled.
-                selected_prefix = target_prefixes[0] if target_prefixes else ""
             if not selected_prefix:
-                self.send_json({"ok": False, "error": "no valid allowed_url_prefix configured"}, status=400)
+                self.send_json({"ok": False, "error": "missing allowed_url_prefix"}, status=400)
+                return
+            if selected_prefix not in target_prefixes:
+                self.send_json({
+                    "ok": False,
+                    "error": "selected allowed_url_prefix is not configured on this cloud server",
+                    "selected_allowed_url_prefix": selected_prefix,
+                    "configured_allowed_url_prefixes": target_prefixes,
+                }, status=400)
                 return
             created_at = now()
             with JOBS_LOCK:
@@ -520,7 +544,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             })
 
             self.send_response(303)
-            self.send_header("Location", "/")
+            self.send_header("Location", "/?selected_prefix=" + quote(selected_prefix, safe=""))
             self.end_headers()
             return
 
