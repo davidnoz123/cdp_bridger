@@ -647,6 +647,16 @@ The key idea remains the same:
 
 This is why deployment matters so much. Software is often valuable only when it can reach the user’s real working environment. The product behind this demo is about making that reach safer, simpler, and less repetitive.
 
+### Bridge deployment and future skills
+
+A key production question is how new local capabilities should be added. The product should avoid a model where every new skill requires the user to download and run a new Python file. That would recreate the deployment friction this project is trying to remove.
+
+A better direction is to treat the local bridge as a stable trusted runtime. The user installs or runs the bridge once. The bridge then exposes a controlled set of local capabilities to the user’s web account. New tools can be added through cloud-managed skill definitions, permission prompts, and, where necessary, signed local plugin modules.
+
+The safest initial version would keep the bridge mostly self-contained: one trusted bridge with a small set of built-in capabilities. Later versions could support additional plugin files, but only with explicit user approval, versioning, signing, audit logging, and clear permission boundaries.
+
+The goal is not to let the cloud push arbitrary code onto the user’s machine. The goal is to make local tool deployment less repetitive while keeping the user in control of what the bridge is allowed to do.
+
 ## Footnotes
 
 <a id="footnote-sse-job"></a>
