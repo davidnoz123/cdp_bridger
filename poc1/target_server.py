@@ -29,7 +29,7 @@ PORT = 8002
 SESSION_COOKIE_NAME = "target_session"
 SESSION_COOKIE_VALUE = "demo-user-session"
 
-dummy_target_site_name = "ChatGPT/Claude/Gemini"
+dummy_target_site_name = "User's Private"
 
 
 def html_page(title: str, body: str) -> bytes:
