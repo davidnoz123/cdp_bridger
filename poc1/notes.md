@@ -151,46 +151,58 @@ The POC does not require a real cloud account, a public web server, or real cred
 
 <a id="section-06-installing-python-on-windows"></a>
 
+
 ## [[back]](#overview-row-06) Installing Python on Windows
 
-On Windows, the simplest approach is to install Python from the official Python installer and make sure it is added to the system `PATH`.
+For this demo, the easiest way to install Python on Windows is through the **Microsoft Store**. This is a simple approach for non-technical users because the Store handles the download and installation for you.
 
-1. Open a browser and go to the Python download page.
-2. Download the latest Python 3 installer for Windows.
-3. Run the installer.
-4. On the first installer screen, tick **Add python.exe to PATH**.
-5. Click **Install Now**.
-6. Wait for the installation to complete.
-7. Open a new Command Prompt or PowerShell window.
-8. Check that Python is available:
+### Step 1 — Open the Microsoft Store
+
+Open the **Microsoft Store** from the Start menu or taskbar.
+
+![Microsoft Store icon](./python_windows_store_icon.png)
+
+If you do not already see it pinned, open the Start menu and search for **Microsoft Store**.
+
+### Step 2 — Search for Python
+
+In the Microsoft Store search box, search for **Python**.
+
+For this guide, use **Python Install Manager** published by the **Python Software Foundation**.
+
+![Python Install Manager in Microsoft Store](./python_windows_store_page.png)
+
+This Store entry provides the official Python installation experience for Windows.
+
+### Step 3 — Open or install Python Install Manager
+
+- If the page shows an **Install** button, click **Install**.
+- If the page shows an **Open** button, Python Install Manager is already installed, and you can click **Open**.
+
+### Step 4 — Install a Python 3 version
+
+Once Python Install Manager opens, choose a current **Python 3** release and install it.
+
+If more than one option is shown, choose a normal current Python 3 version rather than an experimental or specialised build.
+
+### Step 5 — Open Command Prompt or PowerShell
+
+After installation completes, open a new **Command Prompt** or **PowerShell** window.
+
+### Step 6 — Check that Python is installed
+
+Run:
 
 ```powershell
 python --version
 ```
 
-You should see a version number, for example:
+You should see a Python 3 version number, for example:
 
 ```text
 Python 3.12.x
 ```
 
-Also check that `pip` is available:
-
-```powershell
-python -m pip --version
-```
-
-If Windows says that `python` is not recognised, close and reopen the terminal. If it still does not work, Python may not have been added to `PATH`. In that case, either reinstall Python and tick **Add python.exe to PATH**, or use the full path to the Python executable.
-
-For a project-specific environment, you can create a virtual environment inside the demo folder:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
-python -m pip install --upgrade pip
-```
-
-After activation, commands run against the Python installed inside `.venv`. This keeps demo dependencies separate from the rest of the computer.
 
 <a id="section-07-python-on-macos-linux-wsl"></a>
 
@@ -204,13 +216,11 @@ Check the installed version:
 python3 --version
 ```
 
-Check that `pip` is available:
+If Python is installed, you should see a Python 3 version number.
 
-```bash
-python3 -m pip --version
-```
+For this demo, no extra Python packages need to be installed. The demo uses Python’s built-in standard library.
 
-If Python is installed, you should see a Python 3 version number. If Python is missing, install it using the normal package manager for the system.
+If Python is missing, install it using the normal package manager for the system.
 
 On macOS, Python can be installed using the official Python installer or Homebrew:
 
@@ -222,27 +232,19 @@ On Debian, Ubuntu, or WSL Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-venv
+sudo apt install python3
 ```
 
 On Fedora:
 
 ```bash
-sudo dnf install python3 python3-pip
+sudo dnf install python3
 ```
 
 On Arch Linux:
 
 ```bash
-sudo pacman -S python python-pip
-```
-
-After Python is installed, create a virtual environment in the demo folder if desired:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install --upgrade pip
+sudo pacman -S python
 ```
 
 On macOS and Linux, the browser executable may be called `google-chrome`, `chromium`, `chromium-browser`, or it may live inside the standard Applications folder. The CDP launcher code may need to know where the browser is installed if it cannot find it automatically.
