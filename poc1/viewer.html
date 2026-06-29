@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Markdown Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f7f7f7;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #content {
+      box-sizing: border-box;
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 30px;
+      background: white;
+      line-height: 1.55;
+      border-radius: 10px;
+      box-shadow: 0 2px 18px rgba(0,0,0,0.08);
+    }
+
+    #status {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.75);
+      color: white;
+      font-size: 12px;
+      font-family: sans-serif;
+    }
+
+    code {
+      background: #eee;
+      padding: 0.15em 0.3em;
+      border-radius: 4px;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      overflow-x: auto;
+      border-radius: 6px;
+    }
+
+    pre.mermaid {
+      background: white;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main id="content">Loading Markdown...</main>
+  <div id="status">Starting...</div>
+
+  <script type="module">
+    import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs";
+
+    const markdownFile = "notes.md";
+    const reloadIntervalMs = 1000;
+
+    const contentElement = document.getElementById("content");
+    const statusElement = document.getElementById("status");
+
+    let lastMarkdown = null;
+    let renderCounter = 0;
+    let isRendering = false;
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "default"
+    });
+
+    marked.use({
+      renderer: {
+        code(token) {
+          const codeText = token.text ?? "";
+          const language = token.lang ?? "";
+
+          if (language.trim().toLowerCase() === "mermaid") {
+            return `<pre class="mermaid">${escapeHtml(codeText)}</pre>`;
+          }
+
+          return `<pre><code class="language-${escapeHtml(language)}">${escapeHtml(codeText)}</code></pre>`;
+        }
+      }
+    });
+
+    async function loadMarkdown() {
+      const url = `${markdownFile}?cacheBust=${Date.now()}`;
+
+      const response = await fetch(url, {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error(`Could not load ${markdownFile}: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.text();
+    }
+
+    async function renderMarkdown(rawMarkdown) {
+      isRendering = true;
+
+      try {
+        renderCounter += 1;
+
+        contentElement.innerHTML = marked.parse(rawMarkdown);
+
+        // Mermaid can dislike reusing old generated IDs after repeated renders.
+        // Resetting removes previous render state.
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "default"
+        });
+
+        await mermaid.run({
+          querySelector: "pre.mermaid"
+        });
+
+        statusElement.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      } finally {
+        isRendering = false;
+      }
+    }
+
+    async function checkForChanges() {
+      if (isRendering) {
+        return;
+      }
+
+      try {
+        const rawMarkdown = await loadMarkdown();
+
+        if (rawMarkdown !== lastMarkdown) {
+          lastMarkdown = rawMarkdown;
+          await renderMarkdown(rawMarkdown);
+        }
+      } catch (error) {
+        contentElement.innerHTML = `<pre>${escapeHtml(error.message)}</pre>`;
+        statusElement.textContent = "Error loading Markdown";
+        console.error(error);
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    await checkForChanges();
+
+    setInterval(checkForChanges, reloadIntervalMs);
+  </script>
+</body>
+</html>

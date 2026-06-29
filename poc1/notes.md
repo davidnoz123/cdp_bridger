@@ -1,0 +1,165 @@
+# CDP Bridger POC Demo Guide
+
+> Markdown extraction from `demo_guide_linked_row_bookmarks.docx`.
+> Drawings/images have been intentionally ignored.
+
+## Section overview
+
+| Order | Section title | Brief description |
+|---:|---|---|
+| <a id="overview-row-01"></a>1 | [[link1] What this demo shows](#section-01-what-this-demo-shows) | A short plain-English overview: the cloud page sends a constrained capture request to a local helper, which captures text from an already-open browser page via local CDP and posts the result back. |
+| <a id="overview-row-02"></a>2 | [[link2] Why this matters](#section-02-why-this-matters) | Explain the key idea: the cloud does not get cookies, passwords, browser profile files, or raw CDP access. The local helper enforces policy. |
+| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Include a diagram showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server. |
+| <a id="overview-row-04"></a>4 | [[link4] Demo components](#section-04-demo-components) | Table of files and roles: main.py, cloud_server.py, target_server.py, local_helper.py, cdp_tools.py, multi_command_pane_runner.py. |
+| <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files. |
+| <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: download Python, tick “Add python.exe to PATH”, install, verify with python --version. |
+| <a id="overview-row-07"></a>7 | [[link7] Python on macOS / Linux / WSL](#section-07-python-on-macos-linux-wsl) | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
+| <a id="overview-row-08"></a>8 | [[link8] Before running: clean port check](#section-08-before-running-clean-port-check) | Explain why stale servers break the demo. Show checks for ports 8001 and 8002, plus what the preflight in main.py does. |
+| <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Exact commands: cd into the folder, run python main.py, or use the venv Python path. |
+| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
+| <a id="overview-row-11"></a>11 | [[link11] The cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
+| <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
+| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
+| <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
+| <a id="overview-row-15"></a>15 | [[link15] What happens when something is wrong](#section-15-what-happens-when-something-is-wrong) | Show failure cases: unsupported prefix, no matching tab, multiple matching tabs, no helper connected, CDP unavailable. |
+| <a id="overview-row-16"></a>16 | [[link16] Security and trust boundary](#section-16-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
+| <a id="overview-row-17"></a>17 | [[link17] Troubleshooting](#section-17-troubleshooting) | Practical fixes: duplicate listeners, RemoteDisconnected, Chrome CDP not available, wrong target page, helper reconnect loop. |
+| <a id="overview-row-18"></a>18 | [[link18] Suggested screenshots checklist](#section-18-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
+| <a id="overview-row-19"></a>19 | [[link19] Limitations of this POC](#section-19-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
+| <a id="overview-row-20"></a>20 | [[link20] Next steps / production direction](#section-20-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
+
+<a id="section-01-what-this-demo-shows"></a>
+
+## [[back]](#overview-row-01) What this demo shows
+
+This demo shows a proof-of-concept software deployment framework in which a user’s web account can coordinate work with a trusted local Python bridge running on the user’s own computer. The web account can create high-level jobs, and the local bridge can carry out those jobs using local capabilities such as browser automation, file access, or local scripts, subject to policy checks in the bridge.
+
+In this demonstration, the cloud page sends a constrained capture request to the local bridge. The bridge then uses Chrome DevTools Protocol (CDP) on the user’s machine to read visible text from a browser page that the user is already logged into. The captured result is posted back to the cloud page and displayed there.
+
+The important point is that the cloud side is not directly given browser cookies, passwords, raw browser profile files, or unrestricted CDP access. The local bridge remains the controlled execution point. A future version of this pattern could support tools such as scraping a user’s ChatGPT, Claude, or Gemini sessions and uploading them into a searchable “Googlish” archive, while keeping the sensitive browser/session access local to the user’s machine.
+
+<a id="section-02-why-this-matters"></a>
+
+## [[back]](#overview-row-02) Why this matters
+
+This pattern could become a deployment model for trusted local tools. Instead of installing a separate desktop application for every product feature, the user installs and runs one local Python bridge. That bridge becomes the trusted local execution point on the user’s computer.
+
+The user’s web account then provides the product layer around that bridge: the interface, job orchestration, storage, search, billing, permissions, audit history, and feature configuration. In other words, the website becomes the control plane, while the Python bridge becomes the local worker.
+
+This matters because many valuable tasks require access to things that are difficult or impossible for a normal cloud service to reach directly: local files, desktop applications, browser tabs, logged-in web sessions, legacy software, scanners, Office documents, or private data stored on the user’s machine. The bridge can access those things locally, while the web account gives the user a convenient place to start jobs, review results, search captured material, and manage what tools are allowed to run.
+
+This also creates a practical route for small software providers to offer integrations that are normally reserved for much larger platforms. Large companies can integrate across apps, websites, accounts, and devices because they control major software platforms, have privileged APIs, and already occupy a trusted position with the user. A local bridge offers a different route. It creates a user-authorised integration surface across local files, desktop applications, browser tabs, and logged-in web sessions, without requiring the cloud service to own the browser, the operating system, or the third-party platforms being accessed.
+
+The sensitive access happens locally, under the control of the bridge. The cloud account provides the product experience around it: the user interface, configuration, permissions, storage, search, billing, and audit trail.
+
+In this demo, the tool is deliberately simple: the cloud page asks the local bridge to capture visible text from an allowed browser page. But the same deployment pattern could support many other tools, such as archiving ChatGPT, Claude, or Gemini sessions; processing local Word documents; extracting data from legacy applications; or building searchable personal archives.
+
+The key idea is simple: one trusted local bridge, many cloud-managed tools.
+
+<a id="section-03-architecture-at-a-glance"></a>
+
+## [[back]](#overview-row-03) Architecture at a glance
+
+Placeholder: Include a diagram showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server.
+
+<a id="section-04-demo-components"></a>
+
+## [[back]](#overview-row-04) Demo components
+
+Placeholder: Table of files and roles: main.py, cloud_server.py, target_server.py, local_helper.py, cdp_tools.py, multi_command_pane_runner.py.
+
+<a id="section-05-prerequisites"></a>
+
+## [[back]](#overview-row-05) Prerequisites
+
+Placeholder: Draft content for “Prerequisites” goes here. Planning note: List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files.
+
+<a id="section-06-installing-python-on-windows"></a>
+
+## [[back]](#overview-row-06) Installing Python on Windows
+
+Placeholder: Draft content for “Installing Python on Windows” goes here. Planning note: Step-by-step with screenshots: download Python, tick “Add python.exe to PATH”, install, verify with python --version.
+
+<a id="section-07-python-on-macos-linux-wsl"></a>
+
+## [[back]](#overview-row-07) Python on macOS / Linux / WSL
+
+Placeholder: Draft content for “Python on macOS / Linux / WSL” goes here. Planning note: Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing.
+
+<a id="section-08-before-running-clean-port-check"></a>
+
+## [[back]](#overview-row-08) Before running: clean port check
+
+Placeholder: Draft content for “Before running: clean port check” goes here. Planning note: Explain why stale servers break the demo. Show checks for ports 8001 and 8002, plus what the preflight in main.py does.
+
+<a id="section-09-how-to-run-the-demo"></a>
+
+## [[back]](#overview-row-09) How to run the demo
+
+Placeholder: Draft content for “How to run the demo” goes here. Planning note: Exact commands: cd into the folder, run python main.py, or use the venv Python path.
+
+<a id="section-10-what-should-happen-when-it-starts"></a>
+
+## [[back]](#overview-row-10) What should happen when it starts
+
+Placeholder: Draft content for “What should happen when it starts” goes here. Planning note: Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected.
+
+<a id="section-11-the-cloud-page"></a>
+
+## [[back]](#overview-row-11) The cloud page
+
+Placeholder: Draft content for “The cloud page” goes here. Planning note: Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results.
+
+<a id="section-12-the-target-website"></a>
+
+## [[back]](#overview-row-12) The target website
+
+Placeholder: Draft content for “The target website” goes here. Planning note: Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea.
+
+<a id="section-13-running-a-capture-job"></a>
+
+## [[back]](#overview-row-13) Running a capture job
+
+Placeholder: Draft content for “Running a capture job” goes here. Planning note: Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears.
+
+<a id="section-14-understanding-the-result"></a>
+
+## [[back]](#overview-row-14) Understanding the result
+
+Placeholder: Draft content for “Understanding the result” goes here. Planning note: Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields.
+
+<a id="section-15-what-happens-when-something-is-wrong"></a>
+
+## [[back]](#overview-row-15) What happens when something is wrong
+
+Placeholder: Draft content for “What happens when something is wrong” goes here. Planning note: Show failure cases: unsupported prefix, no matching tab, multiple matching tabs, no helper connected, CDP unavailable.
+
+<a id="section-16-security-and-trust-boundary"></a>
+
+## [[back]](#overview-row-16) Security and trust boundary
+
+Placeholder: Draft content for “Security and trust boundary” goes here. Planning note: Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading.
+
+<a id="section-17-troubleshooting"></a>
+
+## [[back]](#overview-row-17) Troubleshooting
+
+Placeholder: Draft content for “Troubleshooting” goes here. Planning note: Practical fixes: duplicate listeners, RemoteDisconnected, Chrome CDP not available, wrong target page, helper reconnect loop.
+
+<a id="section-18-suggested-screenshots-checklist"></a>
+
+## [[back]](#overview-row-18) Suggested screenshots checklist
+
+Placeholder: Draft content for “Suggested screenshots checklist” goes here. Planning note: A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result.
+
+<a id="section-19-limitations-of-this-poc"></a>
+
+## [[back]](#overview-row-19) Limitations of this POC
+
+Placeholder: Draft content for “Limitations of this POC” goes here. Planning note: Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy.
+
+<a id="section-20-next-steps-production-direction"></a>
+
+## [[back]](#overview-row-20) Next steps / production direction
+
+Placeholder: Draft content for “Next steps / production direction” goes here. Planning note: Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment.
