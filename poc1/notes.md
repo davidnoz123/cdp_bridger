@@ -108,7 +108,6 @@ flowchart TD
 9. **Local Python Bridge — `local_helper.py`** sends **POST result with `job_id`** to **Our Remote Server — `cloud_server.py`**.
 10. **Our Remote Server — `cloud_server.py`** updates **Our Remote Server — Browser tab** to **Show latest capture**.
 
-
 <a id="section-04-demo-components"></a>
 
 ## [[back]](#overview-row-04) Demo components
@@ -201,7 +200,6 @@ You should see a Python 3 version number, for example:
 Python 3.12.x
 ```
 
-
 <a id="section-07-python-on-macos-linux-wsl"></a>
 
 ## [[back]](#overview-row-07) Python on macOS / Linux / WSL
@@ -267,9 +265,9 @@ In other words, this demo is distributed as source code so the idea can be inspe
 
 For this reason, the guided setup call is part of the demonstration. It shows both the current proof of concept and the larger product opportunity: reducing the friction between a useful cloud-managed tool and the local computer where the work actually needs to happen.
 
-<a id="section-18-next-steps-production-direction"></a>
+<a id="section-09-how-to-run-the-demo"></a>
 
-## [[back]](#overview-row-18) Next steps / production direction
+## [[back]](#overview-row-09) How to run the demo
 
 The demo will be run from the unzipped source-code folder during the guided setup call.
 
@@ -295,58 +293,57 @@ The startup script launches the local demo components and opens the browser page
 
 The exact command may vary slightly depending on the operating system and how Python is installed. During the setup call, I will check this with you and help resolve any local machine issues that appear.
 
+<a id="section-10-what-should-happen-when-it-starts"></a>
 
-<a id="section-09-what-should-happen-when-it-starts"></a>
-
-## [[back]](#overview-row-09) What should happen when it starts
+## [[back]](#overview-row-10) What should happen when it starts
 
 Placeholder: Draft content for “What should happen when it starts” goes here. Planning note: Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected.
 
-<a id="section-10-the-cloud-page"></a>
+<a id="section-11-the-cloud-page"></a>
 
-## [[back]](#overview-row-10) The cloud page
+## [[back]](#overview-row-11) The cloud page
 
 Placeholder: Draft content for “The cloud page” goes here. Planning note: Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results.
 
-<a id="section-11-the-target-website"></a>
+<a id="section-12-the-target-website"></a>
 
-## [[back]](#overview-row-11) The target website
+## [[back]](#overview-row-12) The target website
 
 Placeholder: Draft content for “The target website” goes here. Planning note: Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea.
 
-<a id="section-12-running-a-capture-job"></a>
+<a id="section-13-running-a-capture-job"></a>
 
-## [[back]](#overview-row-12) Running a capture job
+## [[back]](#overview-row-13) Running a capture job
 
 Placeholder: Draft content for “Running a capture job” goes here. Planning note: Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears.
 
-<a id="section-13-understanding-the-result"></a>
+<a id="section-14-understanding-the-result"></a>
 
-## [[back]](#overview-row-13) Understanding the result
+## [[back]](#overview-row-14) Understanding the result
 
 Placeholder: Draft content for “Understanding the result” goes here. Planning note: Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields.
 
-<a id="section-14-security-and-trust-boundary"></a>
+<a id="section-15-security-and-trust-boundary"></a>
 
-## [[back]](#overview-row-14) Security and trust boundary
+## [[back]](#overview-row-15) Security and trust boundary
 
 Placeholder: Draft content for “Security and trust boundary” goes here. Planning note: Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading.
 
-<a id="section-15-suggested-screenshots-checklist"></a>
+<a id="section-16-suggested-screenshots-checklist"></a>
 
-## [[back]](#overview-row-15) Suggested screenshots checklist
+## [[back]](#overview-row-16) Suggested screenshots checklist
 
 Placeholder: Draft content for “Suggested screenshots checklist” goes here. Planning note: A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result.
 
-<a id="section-16-limitations-of-this-poc"></a>
+<a id="section-17-limitations-of-this-poc"></a>
 
-## [[back]](#overview-row-16) Limitations of this POC
+## [[back]](#overview-row-17) Limitations of this POC
 
 Placeholder: Draft content for “Limitations of this POC” goes here. Planning note: Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy.
 
-<a id="section-17-next-steps-production-direction"></a>
+<a id="section-18-next-steps-production-direction"></a>
 
-## [[back]](#overview-row-17) Next steps / production direction
+## [[back]](#overview-row-18) Next steps / production direction
 
 Placeholder: Draft content for “Next steps / production direction” goes here. Planning note: Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment.
 
