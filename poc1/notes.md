@@ -81,13 +81,16 @@ flowchart TD
     end
 
     CloudUI -->|"Create job"| CloudServer
-    CloudServer -->|"SSE job"| Helper
-    Helper -->|"CDP read"| Chrome
+    CloudServer -->|"SSE job*"| Helper
+    Helper -->|"CDP read*"| Chrome
     Chrome -->|"Read visible page"| PrivatePage
     TargetSites -->|"Serves page/app content"| PrivatePage
     Helper -->|"POST result with job_id"| CloudServer
     CloudServer -->|"Show result"| CloudUI
 ```
+
+SSE job*  : <link to notes below>
+CDP read* : <link to notes below>
 
 <a id="section-04-demo-components"></a>
 
@@ -190,3 +193,20 @@ Placeholder: Draft content for “Limitations of this POC” goes here. Planning
 ## [[back]](#overview-row-20) Next steps / production direction
 
 Placeholder: Draft content for “Next steps / production direction” goes here. Planning note: Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment.
+
+
+
+
+## Footnotes
+
+**SSE job***: SSE means **Server-Sent Events**. It is a simple web mechanism where the local Python bridge opens a long-lived HTTP connection to the server, and the server can then stream small messages down that connection. In this demo, the local bridge connects to the remote server and waits. When the user clicks the capture button in the browser UI, the server writes a small job message onto the SSE stream. The bridge receives that job and decides locally whether it is allowed to act on it.
+
+SSE is one-way: server to client. That is enough here because the bridge only needs to receive job instructions from the server. When the bridge has finished the job, it sends the result back using a normal HTTP `POST`.
+
+The main alternatives would be polling, WebSockets, or a full message queue. Polling would mean the bridge repeatedly asks “is there a job yet?”, which is simple but wasteful and slower. WebSockets allow two-way communication and are more powerful, but they add complexity that this demo does not need. A message queue would be suitable for a larger production system, but it would make the proof of concept harder to understand. SSE was chosen because it is simple, browser/server friendly, easy to debug, and a good fit for “server sends occasional jobs to a waiting local helper”.
+
+**CDP read***: CDP means **Chrome DevTools Protocol**. It is the protocol that developer tools use to inspect and control Chrome. When Chrome is started with a remote debugging port, a local program can connect to that port and ask Chrome about open tabs, page content, the DOM, JavaScript execution, network activity, and other browser state.
+
+In this demo, the local Python bridge uses CDP to read from a browser tab that is already open on the user’s computer. The important word is **read**. The bridge is not taking control of the user’s account, stealing cookies, reading browser profile files, or sending arbitrary browser commands from the cloud. The cloud server sends only a high-level request. The bridge then checks its local policy, selects an allowed tab, and performs a limited read operation against that tab.
+
+This distinction matters because the sensitive access stays local. The remote server does not get direct CDP access. It does not get the user’s browser session. It only receives the final result that the local bridge chooses to send back after applying its own rules. In the proof of concept, the read operation captures visible page text and textarea values. In a production version, this read capability would need to be carefully permissioned, audited, and limited to user-approved sites and data types.
