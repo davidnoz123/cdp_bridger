@@ -82,13 +82,13 @@ flowchart TD
         TargetSites["127.0.0.1:8002/account (target_server.py)<br/>OR<br/>chatgpt.com<br/>claude.ai<br/>gemini.google.com<br/>etc."]
     end
 
-    CloudUI -->|"Create job"| CloudServer
+    CloudUI -->|"Create capture job"| CloudServer
     CloudServer -->|"SSE job*"| Helper
     Helper -->|"CDP read*"| Chrome
     Chrome -->|"Read visible page"| PrivatePage
     TargetSites -->|"Serves page/app content"| PrivatePage
     Helper -->|"POST result with job_id"| CloudServer
-    CloudServer -->|"Show result"| CloudUI
+    CloudServer -->|"Show latest capture"| CloudUI
 ```
 
 <a id="architecture-link-sse-job"></a>
@@ -97,29 +97,158 @@ flowchart TD
 <a id="architecture-link-cdp-read"></a>
 [[link]](#footnote-cdp-read) CDP read*
 
+### Timeline: how the demo works
+
+1. The user opens **Our Remote Server — Browser tab** on the user’s computer.
+2. The user clicks **Create capture job**.
+3. **Our Remote Server — Browser tab** sends **Create capture job** to **Our Remote Server — `cloud_server.py`**.
+4. **Our Remote Server — `cloud_server.py`** sends an **SSE job*** to **Local Python Bridge — `local_helper.py`**.
+5. **Local Python Bridge — `local_helper.py`** checks the job against its local policy.
+6. **Local Python Bridge — `local_helper.py`** sends a **CDP read*** request to **Chrome CDP — `127.0.0.1:9222`**.
+7. **Chrome CDP — `127.0.0.1:9222`** performs **Read visible page** against **User’s Private Account — Browser tab**.
+8. **Internet** servers serve the private account page content, for example `127.0.0.1:8002/account (target_server.py)`, `chatgpt.com`, `claude.ai`, `gemini.google.com`, etc.
+9. **Local Python Bridge — `local_helper.py`** sends **POST result with `job_id`** to **Our Remote Server — `cloud_server.py`**.
+10. **Our Remote Server — `cloud_server.py`** updates **Our Remote Server — Browser tab** to **Show latest capture**.
+
+
 <a id="section-04-demo-components"></a>
 
 ## [[back]](#overview-row-04) Demo components
 
-Placeholder: Table of files and roles: main.py, cloud_server.py, target_server.py, local_helper.py, cdp_tools.py, multi_command_pane_runner.py.
+This proof of concept is deliberately split into a small number of simple Python files. Each file has a clear role, so the moving parts can be understood separately.
+
+| File                           | Role                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `main.py`                      | Starts the demo. It launches the required local services, starts Chrome with CDP enabled, and opens the terminal panes so the user can see what is happening.                                                                                                                              |
+| `cloud_server.py`              | Provides the demo “cloud” web interface and job server. In the POC it runs locally on port `8001`, but conceptually it represents the user’s web account / remote server. It serves the browser UI, creates jobs, streams jobs to the local helper using SSE, and receives posted results. |
+| `target_server.py`             | Provides a fake target website for safe testing. In the POC it runs locally on port `8002` and simulates a logged-in private account page that the helper can capture from.                                                                                                                |
+| `local_helper.py`              | The local Python bridge. It connects to the server, waits for jobs, checks whether a requested capture is allowed, talks to Chrome through CDP, reads limited page content, and posts the result back.                                                                                     |
+| `cdp_tools.py`                 | Contains the lower-level Chrome/CDP helper code. It is responsible for launching or finding Chrome with a debugging port and sending simple CDP commands.                                                                                                                                  |
+| `multi_command_pane_runner.py` | Runs multiple commands in one terminal-style view so the demo can show the cloud server, target server, helper, and other processes at the same time.                                                                                                                                      |
+
+The important separation is between the **server-side orchestration** and the **local execution point**. The server can create high-level jobs, but the local helper decides what it will actually do. The helper is where the local policy checks live.
+
+In this POC, the demo server and target server both run on `127.0.0.1` to keep everything self-contained and easy to inspect. In a production version, `cloud_server.py` would be replaced by a real hosted web service, while the local helper would still run on the user’s own computer.
 
 <a id="section-05-prerequisites"></a>
 
 ## [[back]](#overview-row-05) Prerequisites
 
-Placeholder: Draft content for “Prerequisites” goes here. Planning note: List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files.
+Before running the demo, the machine needs a few basic pieces of software.
+
+| Requirement                         | Why it is needed                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Python 3                            | The demo is written in Python. The servers, helper, CDP tooling, and process runner are all Python scripts.                    |
+| Chrome, Chromium, or Edge           | The demo uses Chrome DevTools Protocol, so it needs a Chromium-based browser that can be started with a remote debugging port. |
+| Terminal / command prompt           | The demo is started from a terminal so the user can see the server, helper, and browser automation logs.                       |
+| Demo source files                   | The Python files must be in the same project folder so `main.py` can start the pieces correctly.                               |
+| Local network access to `127.0.0.1` | The POC uses local ports such as `8001`, `8002`, and `9222`. These are loopback addresses on the user’s own machine.           |
+| Ports available                     | Ports `8001`, `8002`, and `9222` should not already be occupied by stale demo processes or another application.                |
+
+For the easiest first run, use a normal desktop operating system such as Windows, macOS, or Linux with Chrome installed. The demo is easiest to understand when the browser window and the terminal panes are visible side by side.
+
+The POC does not require a real cloud account, a public web server, or real credentials for ChatGPT, Claude, or Gemini. The included `target_server.py` provides a safe local target page so the capture workflow can be tested without touching a real private account.
 
 <a id="section-06-installing-python-on-windows"></a>
 
 ## [[back]](#overview-row-06) Installing Python on Windows
 
-Placeholder: Draft content for “Installing Python on Windows” goes here. Planning note: Step-by-step with screenshots: download Python, tick “Add python.exe to PATH”, install, verify with python --version.
+On Windows, the simplest approach is to install Python from the official Python installer and make sure it is added to the system `PATH`.
+
+1. Open a browser and go to the Python download page.
+2. Download the latest Python 3 installer for Windows.
+3. Run the installer.
+4. On the first installer screen, tick **Add python.exe to PATH**.
+5. Click **Install Now**.
+6. Wait for the installation to complete.
+7. Open a new Command Prompt or PowerShell window.
+8. Check that Python is available:
+
+```powershell
+python --version
+```
+
+You should see a version number, for example:
+
+```text
+Python 3.12.x
+```
+
+Also check that `pip` is available:
+
+```powershell
+python -m pip --version
+```
+
+If Windows says that `python` is not recognised, close and reopen the terminal. If it still does not work, Python may not have been added to `PATH`. In that case, either reinstall Python and tick **Add python.exe to PATH**, or use the full path to the Python executable.
+
+For a project-specific environment, you can create a virtual environment inside the demo folder:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
+```
+
+After activation, commands run against the Python installed inside `.venv`. This keeps demo dependencies separate from the rest of the computer.
 
 <a id="section-07-python-on-macos-linux-wsl"></a>
 
 ## [[back]](#overview-row-07) Python on macOS / Linux / WSL
 
-Placeholder: Draft content for “Python on macOS / Linux / WSL” goes here. Planning note: Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing.
+On macOS, Linux, or WSL, Python may already be installed. The command is often `python3` rather than `python`.
+
+Check the installed version:
+
+```bash
+python3 --version
+```
+
+Check that `pip` is available:
+
+```bash
+python3 -m pip --version
+```
+
+If Python is installed, you should see a Python 3 version number. If Python is missing, install it using the normal package manager for the system.
+
+On macOS, Python can be installed using the official Python installer or Homebrew:
+
+```bash
+brew install python
+```
+
+On Debian, Ubuntu, or WSL Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip python3-venv
+```
+
+On Fedora:
+
+```bash
+sudo dnf install python3 python3-pip
+```
+
+On Arch Linux:
+
+```bash
+sudo pacman -S python python-pip
+```
+
+After Python is installed, create a virtual environment in the demo folder if desired:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+```
+
+On macOS and Linux, the browser executable may be called `google-chrome`, `chromium`, `chromium-browser`, or it may live inside the standard Applications folder. The CDP launcher code may need to know where the browser is installed if it cannot find it automatically.
+
+For this demo, the key thing is that Python can run the scripts, and Chrome or another Chromium-based browser can be started with a local debugging port.
+
 
 <a id="section-08-before-running-clean-port-check"></a>
 
