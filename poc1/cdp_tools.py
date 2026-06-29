@@ -384,6 +384,7 @@ class ChromeCdpLauncher:
             str(exe),
             f"--remote-debugging-address={host}",
             f"--remote-debugging-port={port}",
+            f"--remote-allow-origins=http://localhost:{port},http://127.0.0.1:{port}",
             f"--user-data-dir={str(profile)}",
             "--no-first-run",
             "--no-default-browser-check",
