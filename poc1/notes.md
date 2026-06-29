@@ -14,16 +14,17 @@
 | <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files, local loopback access, and available ports. |
 | <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: open Microsoft Store, install Python Install Manager, install Python 3, and verify with python --version. |
 | <a id="overview-row-07"></a>7 | [[link7] Python on macOS / Linux / WSL](#section-07-python-on-macos-linux-wsl) | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
-| <a id="overview-row-08"></a>8 | [[link8] How to run the demo](#section-08-how-to-run-the-demo) | Exact commands: cd into the folder and run python main.py. |
-| <a id="overview-row-09"></a>9 | [[link9] What should happen when it starts](#section-09-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
-| <a id="overview-row-10"></a>10 | [[link10] The cloud page](#section-10-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
-| <a id="overview-row-11"></a>11 | [[link11] The target website](#section-11-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
-| <a id="overview-row-12"></a>12 | [[link12] Running a capture job](#section-12-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
-| <a id="overview-row-13"></a>13 | [[link13] Understanding the result](#section-13-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-14"></a>14 | [[link14] Security and trust boundary](#section-14-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
-| <a id="overview-row-15"></a>15 | [[link15] Suggested screenshots checklist](#section-15-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
-| <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
-| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
+| <a id="overview-row-08"></a>8 | [[link8] How this proof of concept will be deployed](#section-08-how-this-proof-of-concept-will-be-deployed) | Explains that the POC is shared as a .zip and walked through on a setup call because deployment friction is the problem the product is designed to reduce. |
+| <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Unzip the source-code folder, confirm Python and Chrome are available, open a terminal, and run python main.py or python3 main.py. |
+| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
+| <a id="overview-row-11"></a>11 | [[link11] The cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
+| <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
+| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
+| <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
+| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
+| <a id="overview-row-16"></a>16 | [[link16] Suggested screenshots checklist](#section-16-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
+| <a id="overview-row-17"></a>17 | [[link17] Limitations of this POC](#section-17-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
+| <a id="overview-row-18"></a>18 | [[link18] Next steps / production direction](#section-18-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
 
 <a id="section-01-what-this-demo-shows"></a>
 
@@ -248,11 +249,52 @@ On macOS and Linux, the browser executable may be called `google-chrome`, `chrom
 
 For this demo, the key thing is that Python can run the scripts, and Chrome or another Chromium-based browser can be started with a local debugging port.
 
-<a id="section-08-how-to-run-the-demo"></a>
+<a id="section-08-how-this-proof-of-concept-will-be-deployed"></a>
 
-## [[back]](#overview-row-08) How to run the demo
+## [[back]](#overview-row-08) How this proof of concept will be deployed
 
-Placeholder: Draft content for “How to run the demo” goes here. Planning note: Exact commands: cd into the folder, run python main.py, or use the venv Python path.
+For this proof of concept, the demo will be shared as a `.zip` file containing the source code and this guide.
+
+I will take you through the deployment on a Google Meet, Zoom, or Telegram call. The purpose of that call is not just to get the demo running. It is also to show, very directly, where the friction is in ordinary software deployment.
+
+Deploying software is often one of the biggest sources of hassle in the software business. A user may need to download files, unzip folders, install dependencies, find the right version of Python, deal with browser permissions, run commands in a terminal, understand error messages, and work out whether a failure is caused by their machine, their network, the software, or the instructions.
+
+That friction is not incidental to this project. It is exactly the problem that the product behind this demo is trying to address.
+
+The proof of concept is deliberately visible and inspectable. You can see the Python files, read the local bridge code, and understand the trust boundary. But the intended product direction is different: the user should not have to manage lots of separate software deployments by hand. Instead, the user would run one trusted local bridge, and their web account would manage the tools, permissions, jobs, results, updates, storage, and product experience around that bridge.
+
+In other words, this demo is distributed as source code so the idea can be inspected. The product behind the demo is about making this kind of deployment smoother, safer, and less repetitive.
+
+For this reason, the guided setup call is part of the demonstration. It shows both the current proof of concept and the larger product opportunity: reducing the friction between a useful cloud-managed tool and the local computer where the work actually needs to happen.
+
+<a id="section-18-next-steps-production-direction"></a>
+
+## [[back]](#overview-row-18) Next steps / production direction
+
+The demo will be run from the unzipped source-code folder during the guided setup call.
+
+At a high level, the process is:
+
+1. Unzip the demo folder.
+2. Confirm that Python 3 is available.
+3. Confirm that Chrome, Chromium, or Edge is available.
+4. Open a terminal in the demo folder.
+5. Run the demo startup script:
+
+```powershell
+python main.py
+```
+
+On macOS, Linux, or WSL, the command may be:
+
+```bash
+python3 main.py
+```
+
+The startup script launches the local demo components and opens the browser pages used in the walkthrough.
+
+The exact command may vary slightly depending on the operating system and how Python is installed. During the setup call, I will check this with you and help resolve any local machine issues that appear.
+
 
 <a id="section-09-what-should-happen-when-it-starts"></a>
 
