@@ -21,10 +21,9 @@
 | <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
 | <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
 | <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
-| <a id="overview-row-16"></a>16 | [[link16] Suggested screenshots checklist](#section-16-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
-| <a id="overview-row-17"></a>17 | [[link17] Limitations of this POC](#section-17-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
-| <a id="overview-row-18"></a>18 | [[link18] Next steps / production direction](#section-18-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
+| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: cloud requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. |
+| <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest about the proof-of-concept limits: local-only demo, simple HTTP server, no production authentication, simple permissions, and deliberately narrow capture behaviour. |
+| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
 
 <a id="section-01-what-this-demo-shows"></a>
 
@@ -509,25 +508,144 @@ The result confirms that the bridge captured page text through local CDP from an
 
 ## [[back]](#overview-row-15) Security and trust boundary
 
-Placeholder: Draft content for “Security and trust boundary” goes here. Planning note: Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading.
+The security model of this proof of concept is based on a simple separation:
 
-<a id="section-16-suggested-screenshots-checklist"></a>
+> The cloud side can ask for work to be done, but the local bridge decides what actually happens on the user’s computer.
 
-## [[back]](#overview-row-16) Suggested screenshots checklist
+The browser UI and server create a high-level job. The local Python bridge receives that job, checks it against its local rules, and only then performs a limited action through Chrome CDP.
 
-Placeholder: Draft content for “Suggested screenshots checklist” goes here. Planning note: A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result.
+The important boundary is that **the remote server is not given direct control of the browser**.
 
-<a id="section-17-limitations-of-this-poc"></a>
+In this demo, the server does not receive:
 
-## [[back]](#overview-row-17) Limitations of this POC
+- the user’s browser cookies,
+- the user’s passwords,
+- the browser profile files,
+- unrestricted CDP access,
+- arbitrary browser automation privileges,
+- direct access to the user’s local files.
 
-Placeholder: Draft content for “Limitations of this POC” goes here. Planning note: Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy.
+Instead, the server receives the final result that the local bridge chooses to send back.
 
-<a id="section-18-next-steps-production-direction"></a>
+### What the cloud side can do
 
-## [[back]](#overview-row-18) Next steps / production direction
+The cloud/server side can:
 
-Placeholder: Draft content for “Next steps / production direction” goes here. Planning note: Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment.
+| Capability | Meaning |
+|---|---|
+| Serve the browser UI | The user interacts with the demo through the web page. |
+| Create a capture job | The server creates a high-level request such as “capture from this allowed target prefix”. |
+| Send the job over SSE | The server streams the job to the local bridge. |
+| Receive the result | The server receives the result posted back by the bridge. |
+| Display the result | The server shows the latest capture and raw JSON for inspection. |
+
+### What the local bridge controls
+
+The local bridge controls the sensitive part of the workflow.
+
+It decides:
+
+| Local decision | Why it matters |
+|---|---|
+| Whether the requested target is allowed | The bridge only handles configured URL prefixes. |
+| Which browser tabs are inspected | The bridge selects from tabs visible to local Chrome/CDP. |
+| Whether the match is unambiguous | The bridge should avoid guessing when multiple tabs could match. |
+| What data is read | The POC reads visible text and textarea values, not cookies. |
+| What result is posted back | The server receives the bridge’s result, not raw CDP access. |
+
+This is the core product idea. The website becomes the control plane, but the local bridge remains the trusted execution point on the user’s machine.
+
+### Why this matters
+
+Many useful tasks require access to things that a normal cloud service cannot safely or directly access: browser tabs, logged-in web sessions, local documents, desktop software, scanners, legacy applications, and private data on the user’s computer.
+
+The bridge pattern gives the user a way to authorise local work without handing the cloud service everything.
+
+In a production version, this boundary would need to be made stronger with:
+
+- a signed local helper,
+- explicit user permissions,
+- clear per-tool capability descriptions,
+- a visible audit trail,
+- careful update handling,
+- narrow local policies,
+- revocation controls.
+
+This POC is deliberately small, but the trust boundary is the important idea: **cloud requests; local bridge decides; sensitive access stays local**.
+
+<a id="section-16-limitations-of-this-poc"></a>
+
+## [[back]](#overview-row-16) Limitations of this POC
+
+This is a proof of concept, not a production system.
+
+It is designed to make the architecture visible and inspectable. The goal is to demonstrate the pattern: a web account can coordinate with a trusted local bridge, and the bridge can perform controlled local work.
+
+The current demo has several deliberate limitations.
+
+| Limitation | Meaning |
+|---|---|
+| Local-only servers | The “remote server” and target website run on `127.0.0.1` for the demo. This keeps the system safe and easy to inspect, but it is not a real hosted deployment. |
+| Simple HTTP server | The POC uses simple Python server code rather than production web infrastructure. |
+| No real user accounts | The demo does not include production login, user management, billing, account settings, or multi-user separation. |
+| No production authentication | The helper/server relationship is simplified for the POC. A production version would need a proper pairing and authorisation process. |
+| Simple target policy | The bridge uses configured URL prefixes to decide which targets are allowed. A production version would need richer permission handling. |
+| Narrow capture behaviour | The demo captures visible text and textarea values. It does not attempt to capture every possible type of page state or application data. |
+| No installer | The demo is shared as source code in a `.zip` file and walked through on a setup call. This is intentionally not the final deployment model. |
+| No automatic updates | A production bridge would need a safe update story. |
+| No full audit trail | The POC shows raw JSON and logs, but it is not a production audit system. |
+
+These limitations are acceptable for the purpose of the demo. In fact, keeping the POC small makes the trust boundary easier to inspect.
+
+The important thing to evaluate is not whether this is already a finished product. The important thing is whether the architecture is useful:
+
+> one trusted local bridge, many cloud-managed tools.
+
+If the pattern is sound, the production work would be about packaging, signing, permissions, accounts, auditing, updates, and user experience.
+
+<a id="section-17-next-steps-production-direction"></a>
+
+## [[back]](#overview-row-17) Next steps / production direction
+
+The product direction is to turn this proof-of-concept pattern into a smoother deployment and execution model for local tools.
+
+The current demo is intentionally manual. It is shared as source code and run during a guided setup call. That is useful for inspection, but it is not the final experience.
+
+The intended direction is:
+
+> The user runs one trusted local bridge, and the web account manages the tools around it.
+
+Possible next steps include:
+
+| Area | Direction |
+|---|---|
+| Signed local bridge | Package the bridge as a signed, trusted local application rather than a loose Python script. |
+| User account pairing | Pair the local bridge with the user’s web account in a clear, revocable way. |
+| Explicit permissions | Show exactly which tools are allowed to access which local capabilities. |
+| Tool registry | Let the web account enable different tools that run through the same local bridge. |
+| Richer capture types | Support more structured extraction from browser pages, local documents, desktop applications, or legacy systems. |
+| Safer policy model | Move from simple URL-prefix rules to clearer user-approved permissions. |
+| Audit trail | Record what jobs were requested, what the bridge did, and what results were returned. |
+| Update mechanism | Provide a safe way to update the bridge and its tool definitions. |
+| Better packaging | Reduce the current setup friction with a simpler install/run experience. |
+| Real cloud deployment | Replace the local POC server with a real hosted service. |
+
+The larger product opportunity is not just browser capture. The same pattern could support many cloud-managed tools that need local execution:
+
+- archiving ChatGPT, Claude, or Gemini sessions,
+- indexing local Word documents,
+- extracting data from legacy applications,
+- automating browser-based workflows,
+- processing local files,
+- building searchable personal or business archives,
+- integrating with software that has no convenient cloud API.
+
+The key idea remains the same:
+
+> The web account provides the product experience.  
+> The local bridge provides controlled access to the user’s computer.
+
+This is why deployment matters so much. Software is often valuable only when it can reach the user’s real working environment. The product behind this demo is about making that reach safer, simpler, and less repetitive.
 
 ## Footnotes
 
