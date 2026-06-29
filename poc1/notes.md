@@ -91,8 +91,11 @@ flowchart TD
     CloudServer -->|"Show result"| CloudUI
 ```
 
-[SSE job*](#footnote-sse-job)  : jump to note below  
-[CDP read*](#footnote-cdp-read) : jump to note below
+<a id="architecture-link-sse-job"></a>
+[[link]](#footnote-sse-job) SSE job*
+
+<a id="architecture-link-cdp-read"></a>
+[[link]](#footnote-cdp-read) CDP read*
 
 <a id="section-04-demo-components"></a>
 
@@ -201,7 +204,8 @@ Placeholder: Draft content for “Next steps / production direction” goes here
 
 <a id="footnote-sse-job"></a>
 
-### [[back]](#architecture-at-a-glance) SSE job*
+
+### [[back]](#architecture-link-sse-job) SSE job*
 
 SSE means **Server-Sent Events**. It is a simple web mechanism where the local Python bridge opens a long-lived HTTP connection to the server, and the server can then stream small messages down that connection. In this demo, the local bridge connects to the remote server and waits. When the user clicks the capture button in the browser UI, the server writes a small job message onto the SSE stream. The bridge receives that job and decides locally whether it is allowed to act on it.
 
@@ -211,7 +215,7 @@ The main alternatives would be polling, WebSockets, or a full message queue. Pol
 
 <a id="footnote-cdp-read"></a>
 
-### [[back]](#architecture-at-a-glance) CDP read*
+### [[back]](#architecture-link-cdp-read) CDP read*
 
 CDP means **Chrome DevTools Protocol**. It is the protocol that developer tools use to inspect and control Chrome. When Chrome is started with a remote debugging port, a local program can connect to that port and ask Chrome about open tabs, page content, the DOM, JavaScript execution, network activity, and other browser state.
 
