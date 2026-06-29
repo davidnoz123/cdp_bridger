@@ -9,24 +9,21 @@
 |---:|---|---|
 | <a id="overview-row-01"></a>1 | [[link1] What this demo shows](#section-01-what-this-demo-shows) | A short plain-English overview: the cloud page sends a constrained capture request to a local helper, which captures text from an already-open browser page via local CDP and posts the result back. |
 | <a id="overview-row-02"></a>2 | [[link2] Why this matters](#section-02-why-this-matters) | Explain the key idea: the cloud does not get cookies, passwords, browser profile files, or raw CDP access. The local helper enforces policy. |
-| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Include a diagram showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server. |
+| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Diagram and timeline showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server. |
 | <a id="overview-row-04"></a>4 | [[link4] Demo components](#section-04-demo-components) | Table of files and roles: main.py, cloud_server.py, target_server.py, local_helper.py, cdp_tools.py, multi_command_pane_runner.py. |
-| <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files. |
-| <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: download Python, tick “Add python.exe to PATH”, install, verify with python --version. |
+| <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files, local loopback access, and available ports. |
+| <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: open Microsoft Store, install Python Install Manager, install Python 3, and verify with python --version. |
 | <a id="overview-row-07"></a>7 | [[link7] Python on macOS / Linux / WSL](#section-07-python-on-macos-linux-wsl) | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
-| <a id="overview-row-08"></a>8 | [[link8] Before running: clean port check](#section-08-before-running-clean-port-check) | Explain why stale servers break the demo. Show checks for ports 8001 and 8002, plus what the preflight in main.py does. |
-| <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Exact commands: cd into the folder, run python main.py, or use the venv Python path. |
-| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
-| <a id="overview-row-11"></a>11 | [[link11] The cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
-| <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
-| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
-| <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-15"></a>15 | [[link15] What happens when something is wrong](#section-15-what-happens-when-something-is-wrong) | Show failure cases: unsupported prefix, no matching tab, multiple matching tabs, no helper connected, CDP unavailable. |
-| <a id="overview-row-16"></a>16 | [[link16] Security and trust boundary](#section-16-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
-| <a id="overview-row-17"></a>17 | [[link17] Troubleshooting](#section-17-troubleshooting) | Practical fixes: duplicate listeners, RemoteDisconnected, Chrome CDP not available, wrong target page, helper reconnect loop. |
-| <a id="overview-row-18"></a>18 | [[link18] Suggested screenshots checklist](#section-18-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
-| <a id="overview-row-19"></a>19 | [[link19] Limitations of this POC](#section-19-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
-| <a id="overview-row-20"></a>20 | [[link20] Next steps / production direction](#section-20-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
+| <a id="overview-row-08"></a>8 | [[link8] How to run the demo](#section-08-how-to-run-the-demo) | Exact commands: cd into the folder and run python main.py. |
+| <a id="overview-row-09"></a>9 | [[link9] What should happen when it starts](#section-09-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
+| <a id="overview-row-10"></a>10 | [[link10] The cloud page](#section-10-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
+| <a id="overview-row-11"></a>11 | [[link11] The target website](#section-11-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
+| <a id="overview-row-12"></a>12 | [[link12] Running a capture job](#section-12-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
+| <a id="overview-row-13"></a>13 | [[link13] Understanding the result](#section-13-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
+| <a id="overview-row-14"></a>14 | [[link14] Security and trust boundary](#section-14-security-and-trust-boundary) | Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading. |
+| <a id="overview-row-15"></a>15 | [[link15] Suggested screenshots checklist](#section-15-suggested-screenshots-checklist) | A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result. |
+| <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy. |
+| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment. |
 
 <a id="section-01-what-this-demo-shows"></a>
 
@@ -251,85 +248,65 @@ On macOS and Linux, the browser executable may be called `google-chrome`, `chrom
 
 For this demo, the key thing is that Python can run the scripts, and Chrome or another Chromium-based browser can be started with a local debugging port.
 
+<a id="section-08-how-to-run-the-demo"></a>
 
-<a id="section-08-before-running-clean-port-check"></a>
-
-## [[back]](#overview-row-08) Before running: clean port check
-
-Placeholder: Draft content for “Before running: clean port check” goes here. Planning note: Explain why stale servers break the demo. Show checks for ports 8001 and 8002, plus what the preflight in main.py does.
-
-<a id="section-09-how-to-run-the-demo"></a>
-
-## [[back]](#overview-row-09) How to run the demo
+## [[back]](#overview-row-08) How to run the demo
 
 Placeholder: Draft content for “How to run the demo” goes here. Planning note: Exact commands: cd into the folder, run python main.py, or use the venv Python path.
 
-<a id="section-10-what-should-happen-when-it-starts"></a>
+<a id="section-09-what-should-happen-when-it-starts"></a>
 
-## [[back]](#overview-row-10) What should happen when it starts
+## [[back]](#overview-row-09) What should happen when it starts
 
 Placeholder: Draft content for “What should happen when it starts” goes here. Planning note: Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected.
 
-<a id="section-11-the-cloud-page"></a>
+<a id="section-10-the-cloud-page"></a>
 
-## [[back]](#overview-row-11) The cloud page
+## [[back]](#overview-row-10) The cloud page
 
 Placeholder: Draft content for “The cloud page” goes here. Planning note: Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results.
 
-<a id="section-12-the-target-website"></a>
+<a id="section-11-the-target-website"></a>
 
-## [[back]](#overview-row-12) The target website
+## [[back]](#overview-row-11) The target website
 
 Placeholder: Draft content for “The target website” goes here. Planning note: Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea.
 
-<a id="section-13-running-a-capture-job"></a>
+<a id="section-12-running-a-capture-job"></a>
 
-## [[back]](#overview-row-13) Running a capture job
+## [[back]](#overview-row-12) Running a capture job
 
 Placeholder: Draft content for “Running a capture job” goes here. Planning note: Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears.
 
-<a id="section-14-understanding-the-result"></a>
+<a id="section-13-understanding-the-result"></a>
 
-## [[back]](#overview-row-14) Understanding the result
+## [[back]](#overview-row-13) Understanding the result
 
 Placeholder: Draft content for “Understanding the result” goes here. Planning note: Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields.
 
-<a id="section-15-what-happens-when-something-is-wrong"></a>
+<a id="section-14-security-and-trust-boundary"></a>
 
-## [[back]](#overview-row-15) What happens when something is wrong
-
-Placeholder: Draft content for “What happens when something is wrong” goes here. Planning note: Show failure cases: unsupported prefix, no matching tab, multiple matching tabs, no helper connected, CDP unavailable.
-
-<a id="section-16-security-and-trust-boundary"></a>
-
-## [[back]](#overview-row-16) Security and trust boundary
+## [[back]](#overview-row-14) Security and trust boundary
 
 Placeholder: Draft content for “Security and trust boundary” goes here. Planning note: Dedicated explanation: cloud requests; helper decides; helper allows only configured prefixes; no raw CDP commands; no cookie/profile reading.
 
-<a id="section-17-troubleshooting"></a>
+<a id="section-15-suggested-screenshots-checklist"></a>
 
-## [[back]](#overview-row-17) Troubleshooting
-
-Placeholder: Draft content for “Troubleshooting” goes here. Planning note: Practical fixes: duplicate listeners, RemoteDisconnected, Chrome CDP not available, wrong target page, helper reconnect loop.
-
-<a id="section-18-suggested-screenshots-checklist"></a>
-
-## [[back]](#overview-row-18) Suggested screenshots checklist
+## [[back]](#overview-row-15) Suggested screenshots checklist
 
 Placeholder: Draft content for “Suggested screenshots checklist” goes here. Planning note: A checklist of screenshots to capture for the guide: Python install, terminal panes, cloud UI, target page, successful result, failure result.
 
-<a id="section-19-limitations-of-this-poc"></a>
+<a id="section-16-limitations-of-this-poc"></a>
 
-## [[back]](#overview-row-19) Limitations of this POC
+## [[back]](#overview-row-16) Limitations of this POC
 
 Placeholder: Draft content for “Limitations of this POC” goes here. Planning note: Be honest: local-only, simple HTTP server, no authentication, no production SSE infrastructure, simplistic tab-selection policy.
 
-<a id="section-20-next-steps-production-direction"></a>
+<a id="section-17-next-steps-production-direction"></a>
 
-## [[back]](#overview-row-20) Next steps / production direction
+## [[back]](#overview-row-17) Next steps / production direction
 
 Placeholder: Draft content for “Next steps / production direction” goes here. Planning note: Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment.
-
 
 ## Footnotes
 
