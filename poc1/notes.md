@@ -297,31 +297,213 @@ The exact command may vary slightly depending on the operating system and how Py
 
 ## [[back]](#overview-row-10) What should happen when it starts
 
-Placeholder: Draft content for “What should happen when it starts” goes here. Planning note: Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected.
+When the demo starts successfully, you should see two things:
+
+1. A terminal window showing the running demo components.
+2. A Chrome browser window with tabs for the demo pages.
+
+The terminal window is split into panes so you can see the main processes running at the same time.
+
+![Demo started in terminal panes](./multi_pane_for_demo.png)
+
+The panes show the main parts of the proof of concept:
+
+| Pane                           | What it shows                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| **Our Remote Server**          | The demo cloud/server process is running on `http://127.0.0.1:8001/`.                                         |
+| **User Account + CDP Browser** | The fake private account website is running on `http://127.0.0.1:8002/`, and the account tab has been opened. |
+| **Local Python Bridge**        | The local bridge is running, has reported its capabilities, and has connected to the server’s SSE stream.     |
+
+The important success signs are:
+
+* `Our Remote server running at http://127.0.0.1:8001/`
+* `User's Private target website running at http://127.0.0.1:8002/`
+* `Cloud UI tab already open`
+* `Account tab already open`
+* `reported helper capabilities`
+* `opening SSE stream`
+* `connected to SSE stream`
+
+You do not need to understand every line in the terminal output. The key point is that the three parts are alive:
+
+1. the server,
+2. the target/private account page,
+3. the local Python bridge.
+
+At this point, the browser should also have tabs open for **Our Remote Server** and **User’s Private Account**.
 
 <a id="section-11-the-cloud-page"></a>
 
 ## [[back]](#overview-row-11) The cloud page
 
-Placeholder: Draft content for “The cloud page” goes here. Planning note: Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results.
+The cloud page is the browser page served by **Our Remote Server**.
+
+In this proof of concept, it runs locally at:
+
+```text
+http://127.0.0.1:8001/
+```
+
+Conceptually, this page represents the user’s web account. In a production version, this would be a real hosted website. In the POC, it is local so the whole system can be inspected and demonstrated safely.
+
+Before a capture has been run, the page looks like this:
+
+![Cloud page before capture](./web2.png)
+
+The important parts are:
+
+| UI element                            | What it does                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Create capture job**                | Creates a high-level capture request on the server.                                             |
+| **Target dropdown**                   | Chooses which target URL prefix the capture job is asking about.                                |
+| **Local helper supports this target** | Shows that the local bridge has reported that it is willing to handle this target.              |
+| **Latest capture**                    | Shows the most recent successful capture. Before the first capture, this says `No capture yet.` |
+| **Raw results JSON**                  | Shows the raw result objects received by the server. Before the first capture, this is empty.   |
+| **Helper API**                        | Lists the simple HTTP endpoints used by the proof of concept.                                   |
+
+The important point is that the page creates a **job**. It does not directly control Chrome. It does not receive cookies or browser profile files. It asks the local bridge to perform a constrained task, and the bridge decides what it is willing to do.
 
 <a id="section-12-the-target-website"></a>
 
 ## [[back]](#overview-row-12) The target website
 
-Placeholder: Draft content for “The target website” goes here. Planning note: Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea.
+The target website is the page that the local Python bridge reads through Chrome CDP.
+
+In this proof of concept, the safe local target page is:
+
+```text
+http://127.0.0.1:8002/account
+```
+
+It represents a private account page that is already open in the user’s browser.
+
+![Target private account page](./web1.png)
+
+The page contains:
+
+* a private account heading,
+* a private note,
+* a textarea value,
+* explanatory text saying that the local Python bridge will read the page through CDP.
+
+In a real version of this pattern, the target page might be a page from a service such as ChatGPT, Claude, Gemini, or another web account. The key point is that the page is open in the user’s own browser environment.
+
+The remote server does not log into this account directly. The local bridge reads from the browser tab on the user’s computer, subject to its local policy.
 
 <a id="section-13-running-a-capture-job"></a>
 
 ## [[back]](#overview-row-13) Running a capture job
 
-Placeholder: Draft content for “Running a capture job” goes here. Planning note: Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears.
+The capture workflow starts from the cloud page.
+
+At a high level, the workflow is:
+
+1. Open **Our Remote Server** in the browser.
+2. Check that the target dropdown is set to the target you want to capture from.
+3. Confirm that the page says the local helper supports this target.
+4. Click **Create capture job**.
+5. The server sends an **SSE job** to the local Python bridge.
+6. The local Python bridge checks the job against its local policy.
+7. If the job is allowed, the bridge performs a **CDP read** against the matching browser tab.
+8. The bridge posts the result back to the server with the `job_id`.
+9. The cloud page updates to show the latest capture.
+
+The important thing is that the server creates a high-level job, but the local bridge performs the sensitive local work.
+
+The job is not:
+
+```text
+"Give the server raw control of my browser."
+```
+
+It is closer to:
+
+```text
+"Ask my local bridge whether it is willing to capture visible text from an allowed browser page."
+```
+
+That distinction is the core of the proof of concept.
 
 <a id="section-14-understanding-the-result"></a>
 
 ## [[back]](#overview-row-14) Understanding the result
 
-Placeholder: Draft content for “Understanding the result” goes here. Planning note: Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields.
+After a successful capture, the cloud page updates to show the result.
+
+![Cloud page after successful capture](./web3.png)
+
+The result is shown in two forms:
+
+1. a friendly summary for humans,
+2. the raw JSON result for inspection.
+
+### Latest capture
+
+The **Latest capture** table gives a compact summary.
+
+| Field            | Meaning                                                    |
+| ---------------- | ---------------------------------------------------------- |
+| **Received**     | When the server received the result from the local bridge. |
+| **Job**          | The job identifier, such as `job_1`.                       |
+| **Status**       | Whether the capture succeeded.                             |
+| **Captured URL** | The browser page that the local bridge captured from.      |
+| **Title**        | The page title reported from the browser tab.              |
+
+This is the human-friendly version of the result.
+
+### Preview
+
+The **Preview** section shows the visible text captured from the browser page.
+
+In the example, this includes text from the user’s private account page:
+
+```text
+User's Private Account
+
+Private note: This text is visible only because this browser is logged in.
+
+This is the page the Local Python Bridge will read through CDP, without reading cookies directly.
+```
+
+This demonstrates that the bridge read page content from the browser tab.
+
+### Textarea values
+
+The **Textarea values** section shows values captured from editable fields on the page.
+
+For example:
+
+```text
+text-editor: Edit this text...
+```
+
+This matters because useful account pages often contain textareas, form fields, editors, or other structured areas that may not be captured cleanly by plain visible text alone.
+
+### Raw results JSON
+
+The **Raw results JSON** section shows the full result object posted back by the local bridge.
+
+This is useful for inspection and debugging. It shows details such as:
+
+| JSON field                             | Meaning                                                                           |
+| -------------------------------------- | --------------------------------------------------------------------------------- |
+| `ok`                                   | Whether the capture succeeded.                                                    |
+| `job_id`                               | Which job this result belongs to.                                                 |
+| `captured_from_url`                    | The URL of the page that was captured.                                            |
+| `captured_title`                       | The browser page title.                                                           |
+| `visible_text`                         | The visible text captured from the page.                                          |
+| `areas`                                | Additional captured areas, such as textarea values.                               |
+| `requested_allowed_url_prefixes`       | The target prefixes requested by the job.                                         |
+| `inspected_target_tabs`                | The browser tabs inspected by the local helper while choosing the capture target. |
+| `note`                                 | A human-readable explanation of how the capture was selected.                     |
+| `local_helper_allowed_target_prefixes` | The target prefixes the local helper is configured to allow.                      |
+| `received_at`                          | When the server received the result.                                              |
+| `job_status_before_result`             | The job status before the result was posted back.                                 |
+
+The raw JSON is deliberately visible in the demo. It makes the data flow inspectable and helps show the trust boundary.
+
+The result confirms that the bridge captured page text through local CDP from an allowed browser tab. It also shows that the server received the final result, not raw browser access.
+
 
 <a id="section-15-security-and-trust-boundary"></a>
 
