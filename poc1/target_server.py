@@ -132,7 +132,7 @@ class TargetHandler(BaseHTTPRequestHandler):
                 return
 
             self.send_html(f"{dummy_target_site_name} Account", f"""
-<h1>{dummy_target_site_name} Account Page</h1>
+<h1>{dummy_target_site_name} Account</h1>
 <div class="box" id="account-data">
   <p><strong>Private note:</strong> This text is visible only because this browser is logged in.</p>
   <textarea id="text-editor" rows="6" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:1em;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;">Edit this text…</textarea>

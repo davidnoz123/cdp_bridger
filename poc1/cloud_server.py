@@ -408,7 +408,7 @@ class CloudHandler(BaseHTTPRequestHandler):
   <li><code>GET /api/results</code> &mdash; inspect all results</li>
 </ul>
 """
-            self.send_html(dummy_remote_site_name, body)
+            self.send_html(f"{dummy_remote_site_name} Server", body)
             return
 
         if path == "/api/events":

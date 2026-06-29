@@ -64,8 +64,8 @@ The key idea is simple: one trusted local bridge, many cloud-managed tools.
 
 ```mermaid
 flowchart TD
-    subgraph RemoteServer["Our Remote Server"]
-        CloudServer["Port 8001<br/>cloud_server.py"]
+    subgraph RemoteServer["Internet"]
+        CloudServer["Our Remote Server<br/>Port 8001<br/>cloud_server.py"]
     end
 
     subgraph UserComputer["User's Computer"]
@@ -74,11 +74,11 @@ flowchart TD
         subgraph BrowserEnv["Browser Environment"]
             CloudUI["Our Remote Server<br/>Browser tab"]
             Chrome["Chrome CDP<br/>127.0.0.1:9222"]
-            PrivatePage["User's Private Account Page<br/>Browser tab"]
+            PrivatePage["User's Private Account<br/>Browser tab"]
         end
     end
 
-    subgraph InternetServers["Internet Servers"]
+    subgraph InternetServers["Internet"]
         TargetSites["127.0.0.1:8002/account (target_server.py)<br/>OR<br/>chatgpt.com<br/>claude.ai<br/>gemini.google.com<br/>etc."]
     end
 
