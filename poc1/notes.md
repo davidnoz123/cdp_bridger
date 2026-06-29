@@ -21,7 +21,7 @@
 | <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
 | <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
 | <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: cloud requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. |
+| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: cloud requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. Also introduces AI-assisted review as a practical way to inspect the local bridge code. |
 | <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest about the proof-of-concept limits: local-only demo, simple HTTP server, no production authentication, simple permissions, and deliberately narrow capture behaviour. |
 | <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
 
@@ -263,6 +263,8 @@ The proof of concept is deliberately visible and inspectable. You can see the Py
 In other words, this demo is distributed as source code so the idea can be inspected. The product behind the demo is about making this kind of deployment smoother, safer, and less repetitive.
 
 For this reason, the guided setup call is part of the demonstration. It shows both the current proof of concept and the larger product opportunity: reducing the friction between a useful cloud-managed tool and the local computer where the work actually needs to happen.
+
+During the guided setup, I can also show how the local Python files can be inspected before they are run. Because the proof of concept is distributed as readable source code, the bridge can be opened in a text editor or pasted into AI tools such as ChatGPT, Claude, Gemini, or similar coding assistants for a plain-English explanation and safety check. This is not a replacement for formal security review, but it is part of the product philosophy: local tools should be easier to inspect, explain, and trust.
 
 <a id="section-09-how-to-run-the-demo"></a>
 
@@ -571,6 +573,29 @@ In a production version, this boundary would need to be made stronger with:
 - narrow local policies,
 - revocation controls.
 
+### AI-assisted code review
+
+Because the local bridge runs on the user’s computer, it should be easy for the user, or someone helping the user, to inspect what it does.
+
+One practical safety measure is to encourage users to review the local Python bridge code using AI tools such as ChatGPT, Claude, Gemini, or similar coding assistants. The demo is deliberately shared as ordinary Python source code, rather than as an opaque binary installer, so that the files can be opened, copied, searched, and audited.
+
+A user can ask an AI tool questions such as:
+
+```text
+Please review this Python file and explain what it does.
+Does it read browser cookies, passwords, or browser profile files?
+Does it send data to any server other than the configured demo server?
+Does it open network connections? If so, where?
+Does it execute downloaded code?
+Does it access local files?
+Does it use Chrome DevTools Protocol, and what commands does it send?
+Summarise any security concerns in plain English.
+```
+
+This does not replace professional security review, code signing, sandboxing, or proper production controls. AI tools can make mistakes. However, AI-assisted review can lower the barrier for ordinary users and small organisations to understand what a local helper is doing before they run it.
+
+In a production version, this idea could become part of the deployment process. The bridge could ship with a plain-English capability summary, hashes of important files, a permission manifest, and suggested audit prompts. The goal would be to make the local bridge not only powerful, but also inspectable.
+
 This POC is deliberately small, but the trust boundary is the important idea: **cloud requests; local bridge decides; sensitive access stays local**.
 
 <a id="section-16-limitations-of-this-poc"></a>
@@ -626,6 +651,7 @@ Possible next steps include:
 | Richer capture types | Support more structured extraction from browser pages, local documents, desktop applications, or legacy systems. |
 | Safer policy model | Move from simple URL-prefix rules to clearer user-approved permissions. |
 | Audit trail | Record what jobs were requested, what the bridge did, and what results were returned. |
+| AI-assisted audit workflow | Provide plain-English capability summaries, file hashes, permission manifests, and suggested AI review prompts so users can inspect the bridge before trusting it. |
 | Update mechanism | Provide a safe way to update the bridge and its tool definitions. |
 | Better packaging | Reduce the current setup friction with a simpler install/run experience. |
 | Real cloud deployment | Replace the local POC server with a real hosted service. |
