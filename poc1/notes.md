@@ -60,7 +60,34 @@ The key idea is simple: one trusted local bridge, many cloud-managed tools.
 
 ## [[back]](#overview-row-03) Architecture at a glance
 
-Placeholder: Include a diagram showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server.
+```mermaid
+flowchart TD
+    subgraph RemoteServer["Our Remote Server"]
+        CloudServer["Port 8001<br/>cloud_server.py"]
+    end
+
+    subgraph UserComputer["User's Computer"]
+        Helper["Local Python Bridge<br/>local_helper.py"]
+
+        subgraph BrowserEnv["Browser Environment"]
+            CloudUI["Our Remote Server<br/>Browser tab"]
+            Chrome["Chrome CDP<br/>127.0.0.1:9222"]
+            PrivatePage["User's Private Account Page<br/>Browser tab"]
+        end
+    end
+
+    subgraph InternetServers["Internet Servers"]
+        TargetSites["127.0.0.1:8002/account (target_server.py)<br/>OR<br/>chatgpt.com<br/>claude.ai<br/>gemini.google.com<br/>etc."]
+    end
+
+    CloudUI -->|"Create job"| CloudServer
+    CloudServer -->|"SSE job"| Helper
+    Helper -->|"CDP read"| Chrome
+    Chrome -->|"Read visible page"| PrivatePage
+    TargetSites -->|"Serves page/app content"| PrivatePage
+    Helper -->|"POST result with job_id"| CloudServer
+    CloudServer -->|"Show result"| CloudUI
+```
 
 <a id="section-04-demo-components"></a>
 
