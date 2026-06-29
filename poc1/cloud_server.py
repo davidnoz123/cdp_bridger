@@ -240,7 +240,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             helper_status_json = json.dumps(helper_status_snapshot, ensure_ascii=False)
             body = f"""
 <h1>{dummy_remote_site_name} Server</h1>
-<p>This pretends to be your web app / cloud job server.</p>
+<p>This will be where our users setup their toolsheds.</p>
 <div class="box">
   <form method="post" action="/create-demo-job" class="capture-form">
     <div class="capture-grid">
