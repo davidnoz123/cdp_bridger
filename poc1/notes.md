@@ -1,27 +1,27 @@
-# Share and Sell Software : A New Way to Deploy Software to beat the Giants
+# Share and Sell Software : A New Way to Deploy Software to Beat the Giants
 
 
-## Section overview
+## Overview
 
-| Order | Section title | Brief description |
-|---:|---|---|
-| <a id="overview-row-01"></a>1 | [[link1] What this demo shows](#section-01-what-this-demo-shows) | A short plain-English overview: our cloud server sends a constrained capture request to a local Python "bridge", which captures text from an already-open browser page via local Chrome DevTools Protocol (CDP) and posts the result back. |
-| <a id="overview-row-02"></a>2 | [[link2] Why this matters](#section-02-why-this-matters) | Explain the key idea: our cloud server does not get cookies, passwords, browser profile files, or raw CDP access. The local Python bridge enforces policy. |
-| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Diagram and timeline showing: Our Cloud UI → Our Cloud Server → SSE → Local Python Bridge → Chrome CDP → Target Page → POST result back to Our Cloud Server. |
-| <a id="overview-row-04"></a>4 | [[link4] Demo components](#section-04-demo-components) | Table of files and roles: main.py, our_cloud_server.py, target_server.py, local_bridge.py, cdp_tools.py, multi_command_pane_runner.py. |
-| <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files, local loopback access, and available ports. |
-| <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: open Microsoft Store, install Python Install Manager, install Python 3, and verify with python --version. |
-| <a id="overview-row-07"></a>7 | [[link7] Python on macOS / Linux / WSL](#section-07-python-on-macos-linux-wsl) | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
-| <a id="overview-row-08"></a>8 | [[link8] How this proof of concept will be deployed](#section-08-how-this-proof-of-concept-will-be-deployed) | Explains that the POC is shared as a .zip and walked through on a setup call because deployment friction is the problem the product is designed to reduce. |
-| <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Unzip the source-code folder, confirm Python and Chrome are available, open a terminal, and run python main.py or python3 main.py. |
-| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: our cloud server, target server, local Python bridge, CDP browser ready, SSE connected. |
-| <a id="overview-row-11"></a>11 | [[link11] Our Cloud Server UI Page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, local Python bridge status, latest capture, raw JSON results. |
-| <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
-| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, local Python bridge receives SSE job, local Python bridge captures target page, result appears. |
-| <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: our cloud server requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. Also introduces AI-assisted review as a practical way to inspect the local bridge code. |
-| <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest about the proof-of-concept limits: local-only demo, simple HTTP server, no production authentication, simple permissions, and deliberately narrow capture behaviour. |
-| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed local Python bridge, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
+|  |  |
+|---|---|
+| <a id="overview-row-01"></a>[[link]](#section-01-what-this-demo-shows)**What this demo shows** | A short plain-English overview: our cloud server sends a constrained capture request to a local Python "bridge", which captures text from an already-open browser page via local Chrome DevTools Protocol (CDP) and posts the result back. |
+| <a id="overview-row-02"></a>[[link]](#section-02-why-this-matters)**Why this matters** | Explain the key idea: our cloud server does not get cookies, passwords, browser profile files, or raw CDP access. The local Python bridge enforces policy. |
+| <a id="overview-row-03"></a>[[link]](#section-03-architecture-at-a-glance)**Architecture at a glance** | Diagram and timeline showing: Our Cloud UI → Our Cloud Server → SSE → Local Python Bridge → Chrome CDP → Target Page → POST result back to Our Cloud Server. |
+| <a id="overview-row-04"></a>[[link]](#section-04-demo-components)**Demo components** | Table of files and roles: main.py, our_cloud_server.py, target_server.py, local_bridge.py, cdp_tools.py, multi_command_pane_runner.py. |
+| <a id="overview-row-05"></a>[[link]](#section-05-prerequisites)**Prerequisites** | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files, local loopback access, and available ports. |
+| <a id="overview-row-06"></a>[[link]](#section-06-installing-python-on-windows)**Installing Python on Windows** | Step-by-step with screenshots: open Microsoft Store, install Python Install Manager, install Python 3, and verify with python --version. |
+| <a id="overview-row-07"></a>[[link]](#section-07-python-on-macos-linux-wsl)**Python on macOS / Linux / WSL** | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
+| <a id="overview-row-08"></a>[[link]](#section-08-how-this-proof-of-concept-will-be-deployed)**How this proof of concept will be deployed** | Explains that the POC is shared as a .zip and walked through on a setup call because deployment friction is the problem the product is designed to reduce. |
+| <a id="overview-row-09"></a>[[link]](#section-09-how-to-run-the-demo)**How to run the demo** | Unzip the source-code folder, confirm Python and Chrome are available, open a terminal, and run python main.py or python3 main.py. |
+| <a id="overview-row-10"></a>[[link]](#section-10-what-should-happen-when-it-starts)**What should happen when it starts** | Show expected terminal panes and log messages: our cloud server, target server, local Python bridge, CDP browser ready, SSE connected. |
+| <a id="overview-row-11"></a>[[link]](#section-11-the-cloud-page)**Our Cloud Server UI Page** | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, local Python bridge status, latest capture, raw JSON results. |
+| <a id="overview-row-12"></a>[[link]](#section-12-the-target-website)**The target website** | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
+| <a id="overview-row-13"></a>[[link]](#section-13-running-a-capture-job)**Running a capture job** | Step-by-step: select prefix, click capture, job created, local Python bridge receives SSE job, local Python bridge captures target page, result appears. |
+| <a id="overview-row-14"></a>[[link]](#section-14-understanding-the-result)**Understanding the result** | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
+| <a id="overview-row-15"></a>[[link]](#section-15-security-and-trust-boundary)**Security and trust boundary** | Explains the trust boundary: our cloud server requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. Also introduces AI-assisted review as a practical way to inspect the local bridge code. |
+| <a id="overview-row-16"></a>[[link]](#section-16-limitations-of-this-poc)**Limitations of this POC** | Be honest about the proof-of-concept limits: local-only demo, simple HTTP server, no production authentication, simple permissions, and deliberately narrow capture behaviour. |
+| <a id="overview-row-17"></a>[[link]](#section-17-next-steps-production-direction)**Next steps / production direction** | Explain possible evolution: signed local Python bridge, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
 
 <a id="section-01-what-this-demo-shows"></a>
 
