@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-cloud_server.py
+our_cloud_server.py
 
 A tiny fake cloud/web server running locally, using SSE + POST.
 
 Run:
-    python cloud_server.py
+    python our_cloud_server.py
 
 Open:
     http://127.0.0.1:8001/

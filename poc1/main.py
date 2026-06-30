@@ -4,7 +4,7 @@ main.py
 
 Run the CDP-bridger POC stack in a single multi-pane console.
 
-  - Pane 1: cloud_server.py   (fake cloud server, SSE + POST)
+  - Pane 1: our_cloud_server.py   (fake cloud server, SSE + POST)
   - Pane 2: target_server.py  (fake target website + CDP browser launcher)
   - Pane 3: local_bridge.py   (local CDP helper, subscribes to cloud via SSE)
 
@@ -109,7 +109,7 @@ def _assert_required_ports_are_free(checks: Iterable[PortCheck]) -> None:
 
     print("", file=sys.stderr)
     print("[main] ERROR: one or more required POC ports are already in use.", file=sys.stderr)
-    print("[main] This usually means a stale cloud_server.py or target_server.py is still running.", file=sys.stderr)
+    print("[main] This usually means a stale our_cloud_server.py or target_server.py is still running.", file=sys.stderr)
     print("", file=sys.stderr)
 
     for conflict in conflicts:
@@ -129,7 +129,7 @@ def _assert_required_ports_are_free(checks: Iterable[PortCheck]) -> None:
 def _launch_cdp_browser() -> None:
     """Start or attach to the shared CDP Chrome instance before subprocesses need it.
 
-    Doing this here eliminates the race where cloud_server and target_server both
+    Doing this here eliminates the race where our_cloud_server and target_server both
     try to create Chrome at the same time. The subprocesses call
     launch(reuse_existing_if_available=True) and should find it already running.
     """
@@ -158,7 +158,7 @@ def main() -> int:
     panes = [
         MultiPaneConsole.PaneProcess(
             title="Our Cloud Server",
-            command=_script("cloud_server.py"),
+            command=_script("our_cloud_server.py"),
             max_lines=2000,
         ),
         MultiPaneConsole.PaneProcess(
