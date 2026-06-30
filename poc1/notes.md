@@ -1,29 +1,27 @@
-# CDP Bridger POC Demo Guide
+# Share and Sell Software : A New Way to Deploy Software to beat the Giants
 
-> Markdown extraction from `demo_guide_linked_row_bookmarks.docx`.
-> Drawings/images have been intentionally ignored.
 
 ## Section overview
 
 | Order | Section title | Brief description |
 |---:|---|---|
-| <a id="overview-row-01"></a>1 | [[link1] What this demo shows](#section-01-what-this-demo-shows) | A short plain-English overview: the cloud page sends a constrained capture request to a local helper, which captures text from an already-open browser page via local CDP and posts the result back. |
-| <a id="overview-row-02"></a>2 | [[link2] Why this matters](#section-02-why-this-matters) | Explain the key idea: the cloud does not get cookies, passwords, browser profile files, or raw CDP access. The local helper enforces policy. |
-| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Diagram and timeline showing: Cloud UI → Cloud Server → SSE → Local Helper → Chrome CDP → Target Page → POST result back to Cloud Server. |
-| <a id="overview-row-04"></a>4 | [[link4] Demo components](#section-04-demo-components) | Table of files and roles: main.py, cloud_server.py, target_server.py, local_helper.py, cdp_tools.py, multi_command_pane_runner.py. |
+| <a id="overview-row-01"></a>1 | [[link1] What this demo shows](#section-01-what-this-demo-shows) | A short plain-English overview: our cloud server sends a constrained capture request to a local Python "bridge", which captures text from an already-open browser page via local Chrome DevTools Protocol (CDP) and posts the result back. |
+| <a id="overview-row-02"></a>2 | [[link2] Why this matters](#section-02-why-this-matters) | Explain the key idea: our cloud server does not get cookies, passwords, browser profile files, or raw CDP access. The local Python bridge enforces policy. |
+| <a id="overview-row-03"></a>3 | [[link3] Architecture at a glance](#section-03-architecture-at-a-glance) | Diagram and timeline showing: Our Cloud UI → Our Cloud Server → SSE → Local Python Bridge → Chrome CDP → Target Page → POST result back to Our Cloud Server. |
+| <a id="overview-row-04"></a>4 | [[link4] Demo components](#section-04-demo-components) | Table of files and roles: main.py, our_cloud_server.py, target_server.py, local_bridge.py, cdp_tools.py, multi_command_pane_runner.py. |
 | <a id="overview-row-05"></a>5 | [[link5] Prerequisites](#section-05-prerequisites) | List required software: Python 3, Chrome/Chromium/Edge, terminal/command prompt, demo source files, local loopback access, and available ports. |
 | <a id="overview-row-06"></a>6 | [[link6] Installing Python on Windows](#section-06-installing-python-on-windows) | Step-by-step with screenshots: open Microsoft Store, install Python Install Manager, install Python 3, and verify with python --version. |
 | <a id="overview-row-07"></a>7 | [[link7] Python on macOS / Linux / WSL](#section-07-python-on-macos-linux-wsl) | Explain that macOS/Linux may already have python3; show python3 --version; include install hints if missing. |
 | <a id="overview-row-08"></a>8 | [[link8] How this proof of concept will be deployed](#section-08-how-this-proof-of-concept-will-be-deployed) | Explains that the POC is shared as a .zip and walked through on a setup call because deployment friction is the problem the product is designed to reduce. |
 | <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Unzip the source-code folder, confirm Python and Chrome are available, open a terminal, and run python main.py or python3 main.py. |
-| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: cloud server, target server, local helper, CDP browser ready, SSE connected. |
-| <a id="overview-row-11"></a>11 | [[link11] The cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, helper status, latest capture, raw JSON results. |
+| <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: our cloud server, target server, local Python bridge, CDP browser ready, SSE connected. |
+| <a id="overview-row-11"></a>11 | [[link11] Our cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, local Python bridge status, latest capture, raw JSON results. |
 | <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
-| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, helper receives SSE job, helper captures target page, result appears. |
+| <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, local Python bridge receives SSE job, local Python bridge captures target page, result appears. |
 | <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
-| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: cloud requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. Also introduces AI-assisted review as a practical way to inspect the local bridge code. |
+| <a id="overview-row-15"></a>15 | [[link15] Security and trust boundary](#section-15-security-and-trust-boundary) | Explains the trust boundary: our cloud server requests; local bridge decides; configured prefixes limit scope; no raw CDP commands, cookies, passwords, or browser profile files are given to the server. Also introduces AI-assisted review as a practical way to inspect the local bridge code. |
 | <a id="overview-row-16"></a>16 | [[link16] Limitations of this POC](#section-16-limitations-of-this-poc) | Be honest about the proof-of-concept limits: local-only demo, simple HTTP server, no production authentication, simple permissions, and deliberately narrow capture behaviour. |
-| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed helper, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
+| <a id="overview-row-17"></a>17 | [[link17] Next steps / production direction](#section-17-next-steps-production-direction) | Explain possible evolution: signed local Python bridge, user account, explicit permissions, richer capture types, packaged installer, real cloud deployment, tool registry, and audit trail. |
 
 <a id="section-01-what-this-demo-shows"></a>
 
@@ -31,9 +29,9 @@
 
 This demo shows a proof-of-concept software deployment framework in which a user’s web account can coordinate work with a trusted local Python bridge running on the user’s own computer. The web account can create high-level jobs, and the local bridge can carry out those jobs using local capabilities such as browser automation, file access, or local scripts, subject to policy checks in the bridge.
 
-In this demonstration, the cloud page sends a constrained capture request to the local bridge. The bridge then uses Chrome DevTools Protocol (CDP) on the user’s machine to read visible text from a browser page that the user is already logged into. The captured result is posted back to the cloud page and displayed there.
+In this demonstration, our cloud server page sends a constrained capture request to the local bridge. The bridge then uses Chrome DevTools Protocol (CDP) on the user’s machine to read visible text from a browser page that the user is already logged into. The captured result is posted back to our cloud server page and displayed there.
 
-The important point is that the cloud side is not directly given browser cookies, passwords, raw browser profile files, or unrestricted CDP access. The local bridge remains the controlled execution point. A future version of this pattern could support tools such as scraping a user’s ChatGPT, Claude, or Gemini sessions and uploading them into a searchable “Googlish” archive, while keeping the sensitive browser/session access local to the user’s machine.
+The important point is that our cloud server is not directly given browser cookies, passwords, raw browser profile files, or unrestricted CDP access. The local bridge remains the controlled execution point. A future version of this pattern could support tools such as scraping a user’s ChatGPT, Claude, or Gemini sessions and uploading them into a searchable “Googlish” archive, while keeping the sensitive browser/session access local to the user’s machine.
 
 <a id="section-02-why-this-matters"></a>
 
@@ -45,11 +43,11 @@ The user’s web account then provides the product layer around that bridge: the
 
 This matters because many valuable tasks require access to things that are difficult or impossible for a normal cloud service to reach directly: local files, desktop applications, browser tabs, logged-in web sessions, legacy software, scanners, Office documents, or private data stored on the user’s machine. The bridge can access those things locally, while the web account gives the user a convenient place to start jobs, review results, search captured material, and manage what tools are allowed to run.
 
-This also creates a practical route for small software providers to offer integrations that are normally reserved for much larger platforms. Large companies can integrate across apps, websites, accounts, and devices because they control major software platforms, have privileged APIs, and already occupy a trusted position with the user. A local bridge offers a different route. It creates a user-authorised integration surface across local files, desktop applications, browser tabs, and logged-in web sessions, without requiring the cloud service to own the browser, the operating system, or the third-party platforms being accessed.
+This also creates a practical route for small software providers to offer integrations that are normally reserved for much larger platforms. Large companies can integrate across apps, websites, accounts, and devices because they control major software platforms, have privileged APIs, and already occupy a trusted position with the user. A local bridge offers a different route. It creates a user-authorised integration surface across local files, desktop applications, browser tabs, and logged-in web sessions, without requiring our cloud server to own the browser, the operating system, or the third-party platforms being accessed.
 
-The sensitive access happens locally, under the control of the bridge. The cloud account provides the product experience around it: the user interface, configuration, permissions, storage, search, billing, and audit trail.
+The sensitive access happens locally, under the control of the bridge. Our cloud server account provides the product experience around it: the user interface, configuration, permissions, storage, search, billing, and audit trail.
 
-In this demo, the tool is deliberately simple: the cloud page asks the local bridge to capture visible text from an allowed browser page. But the same deployment pattern could support many other tools, such as archiving ChatGPT, Claude, or Gemini sessions; processing local Word documents; extracting data from legacy applications; or building searchable personal archives.
+In this demo, the tool is deliberately simple: our cloud server page asks the local bridge to capture visible text from an allowed browser page. But the same deployment pattern could support many other tools, such as archiving ChatGPT, Claude, or Gemini sessions; processing local Word documents; extracting data from legacy applications; or building searchable personal archives.
 
 The key idea is simple: one trusted local bridge, many cloud-managed tools.
 
@@ -61,15 +59,15 @@ The key idea is simple: one trusted local bridge, many cloud-managed tools.
 
 ```mermaid
 flowchart TD
-    subgraph RemoteServer["Internet"]
-        CloudServer["Our Remote Server<br/>Port 8001<br/>cloud_server.py"]
+    subgraph TheInternet["Internet"]
+        CloudServer["Our Cloud Server<br/>Port 8001<br/>our_cloud_server.py"]
     end
 
     subgraph UserComputer["User's Computer"]
-        Helper["Local Python Bridge<br/>local_helper.py"]
+        LocalPythonBridge["Local Python Bridge<br/>local_bridge.py"]
 
         subgraph BrowserEnv["Browser Environment"]
-            CloudUI["Our Remote Server<br/>Browser tab"]
+            CloudUI["Our Cloud Server<br/>Browser tab"]
             Chrome["Chrome CDP<br/>127.0.0.1:9222"]
             PrivatePage["User's Private Account<br/>Browser tab"]
         end
@@ -80,11 +78,11 @@ flowchart TD
     end
 
     CloudUI -->|"Create capture job"| CloudServer
-    CloudServer -->|"SSE job*"| Helper
-    Helper -->|"CDP read*"| Chrome
+    CloudServer -->|"SSE job*"| LocalPythonBridge
+    LocalPythonBridge -->|"CDP read*"| Chrome
     Chrome -->|"Read visible page"| PrivatePage
     TargetSites -->|"Serves page/app content"| PrivatePage
-    Helper -->|"POST result with job_id"| CloudServer
+    LocalPythonBridge -->|"POST result with job_id"| CloudServer
     CloudServer -->|"Show latest capture"| CloudUI
 ```
 
@@ -96,16 +94,16 @@ flowchart TD
 
 ### Timeline: how the demo works
 
-1. The user opens **Our Remote Server — Browser tab** on the user’s computer.
+1. The user opens **Our Cloud Server — Browser tab** on the user’s computer.
 2. The user clicks **Create capture job**.
-3. **Our Remote Server — Browser tab** sends **Create capture job** to **Our Remote Server — `cloud_server.py`**.
-4. **Our Remote Server — `cloud_server.py`** sends an **SSE job*** to **Local Python Bridge — `local_helper.py`**.
-5. **Local Python Bridge — `local_helper.py`** checks the job against its local policy.
-6. **Local Python Bridge — `local_helper.py`** sends a **CDP read*** request to **Chrome CDP — `127.0.0.1:9222`**.
+3. **Our Cloud Server — Browser tab** sends **Create capture job** to **Our Cloud Server — `our_cloud_server.py`**.
+4. **Our Cloud Server — `our_cloud_server.py`** sends an **SSE job*** to **Local Python Bridge — `local_bridge.py`**.
+5. **Local Python Bridge — `local_bridge.py`** checks the job against its local policy.
+6. **Local Python Bridge — `local_bridge.py`** sends a **CDP read*** request to **Chrome CDP — `127.0.0.1:9222`**.
 7. **Chrome CDP — `127.0.0.1:9222`** performs **Read visible page** against **User’s Private Account — Browser tab**.
 8. **Internet** servers serve the private account page content, for example `127.0.0.1:8002/account (target_server.py)`, `chatgpt.com`, `claude.ai`, `gemini.google.com`, etc.
-9. **Local Python Bridge — `local_helper.py`** sends **POST result with `job_id`** to **Our Remote Server — `cloud_server.py`**.
-10. **Our Remote Server — `cloud_server.py`** updates **Our Remote Server — Browser tab** to **Show latest capture**.
+9. **Local Python Bridge — `local_bridge.py`** sends **POST result with `job_id`** to **Our Cloud Server — `our_cloud_server.py`**.
+10. **Our Cloud Server — `our_cloud_server.py`** updates **Our Cloud Server — Browser tab** to **Show latest capture**.
 
 <a id="section-04-demo-components"></a>
 
@@ -116,15 +114,15 @@ This proof of concept is deliberately split into a small number of simple Python
 | File                           | Role                                                                                                                                                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `main.py`                      | Starts the demo. It launches the required local services, starts Chrome with CDP enabled, and opens the terminal panes so the user can see what is happening.                                                                                                                              |
-| `cloud_server.py`              | Provides the demo “cloud” web interface and job server. In the POC it runs locally on port `8001`, but conceptually it represents the user’s web account / remote server. It serves the browser UI, creates jobs, streams jobs to the local helper using SSE, and receives posted results. |
-| `target_server.py`             | Provides a fake target website for safe testing. In the POC it runs locally on port `8002` and simulates a logged-in private account page that the helper can capture from.                                                                                                                |
-| `local_helper.py`              | The local Python bridge. It connects to the server, waits for jobs, checks whether a requested capture is allowed, talks to Chrome through CDP, reads limited page content, and posts the result back.                                                                                     |
+| `our_cloud_server.py`              | Provides the demo “cloud” web interface and job server. In the POC it runs locally on port `8001`, but conceptually it represents our cloud server with a user’s account. It serves the browser UI, creates jobs, streams jobs to the local Python bridge using SSE, and receives posted results. |
+| `target_server.py`             | Provides a fake target website for safe testing. In the POC it runs locally on port `8002` and simulates a logged-in private account page that the local Python bridge can capture from.                                                                                                                |
+| `local_bridge.py`              | The local Python bridge. It connects to the server, waits for jobs, checks whether a requested capture is allowed, talks to Chrome through CDP, reads limited page content, and posts the result back.                                                                                     |
 | `cdp_tools.py`                 | Contains the lower-level Chrome/CDP helper code. It is responsible for launching or finding Chrome with a debugging port and sending simple CDP commands.                                                                                                                                  |
-| `multi_command_pane_runner.py` | Runs multiple commands in one terminal-style view so the demo can show the cloud server, target server, helper, and other processes at the same time.                                                                                                                                      |
+| `multi_command_pane_runner.py` | Runs multiple commands in one terminal-style view so the demo can show our cloud server, target server, local Python bridge, and other processes at the same time.                                                                                                                                      |
 
-The important separation is between the **server-side orchestration** and the **local execution point**. The server can create high-level jobs, but the local helper decides what it will actually do. The helper is where the local policy checks live.
+The important separation is between the **server-side orchestration** and the **local execution point**. The server can create high-level jobs, but the local Python bridge decides what it will actually do. The local Python bridge is where the local policy checks live.
 
-In this POC, the demo server and target server both run on `127.0.0.1` to keep everything self-contained and easy to inspect. In a production version, `cloud_server.py` would be replaced by a real hosted web service, while the local helper would still run on the user’s own computer.
+In this POC, the demo server and target server both run on `127.0.0.1` to keep everything self-contained and easy to inspect. In a production version, `our_cloud_server.py` would be replaced by a real hosted web service, while the local Python bridge would still run on the user’s own computer.
 
 <a id="section-05-prerequisites"></a>
 
@@ -134,9 +132,9 @@ Before running the demo, the machine needs a few basic pieces of software.
 
 | Requirement                         | Why it is needed                                                                                                               |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Python 3                            | The demo is written in Python. The servers, helper, CDP tooling, and process runner are all Python scripts.                    |
+| Python 3                            | The demo is written in Python. The servers, local Python bridge, CDP tooling, and process runner are all Python scripts.                    |
 | Chrome, Chromium, or Edge           | The demo uses Chrome DevTools Protocol, so it needs a Chromium-based browser that can be started with a remote debugging port. |
-| Terminal / command prompt           | The demo is started from a terminal so the user can see the server, helper, and browser automation logs.                       |
+| Terminal / command prompt           | The demo is started from a terminal so the user can see the server, local Python bridge, and browser automation logs.                       |
 | Demo source files                   | The Python files must be in the same project folder so `main.py` can start the pieces correctly.                               |
 | Local network access to `127.0.0.1` | The POC uses local ports such as `8001`, `8002`, and `9222`. These are loopback addresses on the user’s own machine.           |
 | Ports available                     | Ports `8001`, `8002`, and `9222` should not already be occupied by stale demo processes or another application.                |
@@ -311,17 +309,17 @@ The panes show the main parts of the proof of concept:
 
 | Pane                           | What it shows                                                                                                 |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| **Our Remote Server**          | The demo cloud/server process is running on `http://127.0.0.1:8001/`.                                         |
+| **Our Cloud Server**          | The demo cloud/server process is running on `http://127.0.0.1:8001/`.                                         |
 | **User Account + CDP Browser** | The fake private account website is running on `http://127.0.0.1:8002/`, and the account tab has been opened. |
 | **Local Python Bridge**        | The local bridge is running, has reported its capabilities, and has connected to the server’s SSE stream.     |
 
 The important success signs are:
 
-* `Our Remote server running at http://127.0.0.1:8001/`
-* `User's Private target website running at http://127.0.0.1:8002/`
-* `Cloud UI tab already open`
-* `Account tab already open`
-* `reported helper capabilities`
+* `Our cloud server running at http://127.0.0.1:8001/`
+* `User's Private Account website running at http://127.0.0.1:8002/`
+* `Our Cloud Server tab already open`
+* `User's Private Account tab already open`
+* `reported local Python bridge capabilities`
 * `opening SSE stream`
 * `connected to SSE stream`
 
@@ -331,13 +329,13 @@ You do not need to understand every line in the terminal output. The key point i
 2. the target/private account page,
 3. the local Python bridge.
 
-At this point, the browser should also have tabs open for **Our Remote Server** and **User’s Private Account**.
+At this point, the browser should also have tabs open for **Our Cloud Server** and **User’s Private Account**.
 
 <a id="section-11-the-cloud-page"></a>
 
 ## [[back]](#overview-row-11) The cloud page
 
-The cloud page is the browser page served by **Our Remote Server**.
+The cloud page is the browser page served by **Our Cloud Server**.
 
 In this proof of concept, it runs locally at:
 
@@ -357,10 +355,10 @@ The important parts are:
 | ------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | **Create capture job**                | Creates a high-level capture request on the server.                                             |
 | **Target dropdown**                   | Chooses which target URL prefix the capture job is asking about.                                |
-| **Local helper supports this target** | Shows that the local bridge has reported that it is willing to handle this target.              |
+| **Local Python bridge supports this target** | Shows that the local bridge has reported that it is willing to handle this target.              |
 | **Latest capture**                    | Shows the most recent successful capture. Before the first capture, this says `No capture yet.` |
 | **Raw results JSON**                  | Shows the raw result objects received by the server. Before the first capture, this is empty.   |
-| **Helper API**                        | Lists the simple HTTP endpoints used by the proof of concept.                                   |
+| **Local Python bridge API**                        | Lists the simple HTTP endpoints used by the proof of concept.                                   |
 
 The important point is that the page creates a **job**. It does not directly control Chrome. It does not receive cookies or browser profile files. It asks the local bridge to perform a constrained task, and the bridge decides what it is willing to do.
 
@@ -389,7 +387,7 @@ The page contains:
 
 In a real version of this pattern, the target page might be a page from a service such as ChatGPT, Claude, Gemini, or another web account. The key point is that the page is open in the user’s own browser environment.
 
-The remote server does not log into this account directly. The local bridge reads from the browser tab on the user’s computer, subject to its local policy.
+Our cloud server does not log into this account directly. The local bridge reads from the browser tab on the user’s computer, subject to its local policy.
 
 <a id="section-13-running-a-capture-job"></a>
 
@@ -399,9 +397,9 @@ The capture workflow starts from the cloud page.
 
 At a high level, the workflow is:
 
-1. Open **Our Remote Server** in the browser.
+1. Open **Our Cloud Server** in the browser.
 2. Check that the target dropdown is set to the target you want to capture from.
-3. Confirm that the page says the local helper supports this target.
+3. Confirm that the page says the local Python bridge supports this target.
 4. Click **Create capture job**.
 5. The server sends an **SSE job** to the local Python bridge.
 6. The local Python bridge checks the job against its local policy.
@@ -495,9 +493,9 @@ This is useful for inspection and debugging. It shows details such as:
 | `visible_text`                         | The visible text captured from the page.                                          |
 | `areas`                                | Additional captured areas, such as textarea values.                               |
 | `requested_allowed_url_prefixes`       | The target prefixes requested by the job.                                         |
-| `inspected_target_tabs`                | The browser tabs inspected by the local helper while choosing the capture target. |
+| `inspected_target_tabs`                | The browser tabs inspected by the local Python bridge while choosing the capture target. |
 | `note`                                 | A human-readable explanation of how the capture was selected.                     |
-| `local_helper_allowed_target_prefixes` | The target prefixes the local helper is configured to allow.                      |
+| `local_bridge_allowed_target_prefixes` | The target prefixes the local Python bridge is configured to allow.                      |
 | `received_at`                          | When the server received the result.                                              |
 | `job_status_before_result`             | The job status before the result was posted back.                                 |
 
@@ -516,7 +514,7 @@ The security model of this proof of concept is based on a simple separation:
 
 The browser UI and server create a high-level job. The local Python bridge receives that job, checks it against its local rules, and only then performs a limited action through Chrome CDP.
 
-The important boundary is that **the remote server is not given direct control of the browser**.
+The important boundary is that **our cloud server is not given direct control of the browser**.
 
 In this demo, the server does not receive:
 
@@ -565,7 +563,7 @@ The bridge pattern gives the user a way to authorise local work without handing 
 
 In a production version, this boundary would need to be made stronger with:
 
-- a signed local helper,
+- a signed local Python bridge,
 - explicit user permissions,
 - clear per-tool capability descriptions,
 - a visible audit trail,
@@ -592,7 +590,7 @@ Does it use Chrome DevTools Protocol, and what commands does it send?
 Summarise any security concerns in plain English.
 ```
 
-This does not replace professional security review, code signing, sandboxing, or proper production controls. AI tools can make mistakes. However, AI-assisted review can lower the barrier for ordinary users and small organisations to understand what a local helper is doing before they run it.
+This does not replace professional security review, code signing, sandboxing, or proper production controls. AI tools can make mistakes. However, AI-assisted review can lower the barrier for ordinary users and small organisations to understand what a local Python bridge is doing before they run it.
 
 In a production version, this idea could become part of the deployment process. The bridge could ship with a plain-English capability summary, hashes of important files, a permission manifest, and suggested audit prompts. The goal would be to make the local bridge not only powerful, but also inspectable.
 
@@ -610,10 +608,10 @@ The current demo has several deliberate limitations.
 
 | Limitation | Meaning |
 |---|---|
-| Local-only servers | The “remote server” and target website run on `127.0.0.1` for the demo. This keeps the system safe and easy to inspect, but it is not a real hosted deployment. |
+| Local-only servers | “Our cloud server” and target website run on `127.0.0.1` for the demo. This keeps the system safe and easy to inspect, but it is not a real hosted deployment. |
 | Simple HTTP server | The POC uses simple Python server code rather than production web infrastructure. |
 | No real user accounts | The demo does not include production login, user management, billing, account settings, or multi-user separation. |
-| No production authentication | The helper/server relationship is simplified for the POC. A production version would need a proper pairing and authorisation process. |
+| No production authentication | The bridge/server relationship is simplified for the POC. A production version would need a proper pairing and authorisation process. |
 | Simple target policy | The bridge uses configured URL prefixes to decide which targets are allowed. A production version would need richer permission handling. |
 | Narrow capture behaviour | The demo captures visible text and textarea values. It does not attempt to capture every possible type of page state or application data. |
 | No installer | The demo is shared as source code in a `.zip` file and walked through on a setup call. This is intentionally not the final deployment model. |
@@ -690,11 +688,11 @@ The goal is not to let the cloud push arbitrary code onto the user’s machine. 
 
 ### [[back]](#architecture-link-sse-job) SSE job*
 
-SSE means **Server-Sent Events**. It is a simple web mechanism where the local Python bridge opens a long-lived HTTP connection to the server, and the server can then stream small messages down that connection. In this demo, the local bridge connects to the remote server and waits. When the user clicks the capture button in the browser UI, the server writes a small job message onto the SSE stream. The bridge receives that job and decides locally whether it is allowed to act on it.
+SSE means **Server-Sent Events**. It is a simple web mechanism where the local Python bridge opens a long-lived HTTP connection to the server, and the server can then stream small messages down that connection. In this demo, the local bridge connects to our cloud server and waits. When the user clicks the capture button in the browser UI, the server writes a small job message onto the SSE stream. The bridge receives that job and decides locally whether it is allowed to act on it.
 
 SSE is one-way: server to client. That is enough here because the bridge only needs to receive job instructions from the server. When the bridge has finished the job, it sends the result back using a normal HTTP `POST`.
 
-The main alternatives would be polling, WebSockets, or a full message queue. Polling would mean the bridge repeatedly asks “is there a job yet?”, which is simple but wasteful and slower. WebSockets allow two-way communication and are more powerful, but they add complexity that this demo does not need. A message queue would be suitable for a larger production system, but it would make the proof of concept harder to understand. SSE was chosen because it is simple, browser/server friendly, easy to debug, and a good fit for “server sends occasional jobs to a waiting local helper”.
+The main alternatives would be polling, WebSockets, or a full message queue. Polling would mean the bridge repeatedly asks “is there a job yet?”, which is simple but wasteful and slower. WebSockets allow two-way communication and are more powerful, but they add complexity that this demo does not need. A message queue would be suitable for a larger production system, but it would make the proof of concept harder to understand. SSE was chosen because it is simple, browser/server friendly, easy to debug, and a good fit for “server sends occasional jobs to a waiting local Python bridge”.
 
 <a id="footnote-cdp-read"></a>
 
@@ -704,4 +702,4 @@ CDP means **Chrome DevTools Protocol**. It is the protocol that developer tools 
 
 In this demo, the local Python bridge uses CDP to read from a browser tab that is already open on the user’s computer. The important word is **read**. The bridge is not taking control of the user’s account, stealing cookies, reading browser profile files, or sending arbitrary browser commands from the cloud. The cloud server sends only a high-level request. The bridge then checks its local policy, selects an allowed tab, and performs a limited read operation against that tab.
 
-This distinction matters because the sensitive access stays local. The remote server does not get direct CDP access. It does not get the user’s browser session. It only receives the final result that the local bridge chooses to send back after applying its own rules. In the proof of concept, the read operation captures visible page text and textarea values. In a production version, this read capability would need to be carefully permissioned, audited, and limited to user-approved sites and data types.
+This distinction matters because the sensitive access stays local. Our cloud server does not get direct CDP access. It does not get the user’s browser session. It only receives the final result that the local bridge chooses to send back after applying its own rules. In the proof of concept, the read operation captures visible page text and textarea values. In a production version, this read capability would need to be carefully permissioned, audited, and limited to user-approved sites and data types.

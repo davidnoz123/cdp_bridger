@@ -2,25 +2,25 @@
 """
 local_bridge.py
 
-A deliberately tiny local helper POC using only the Python standard library.
+A deliberately tiny local "bridge" POC using only the Python standard library.
 
 It demonstrates this SSE + POST flow:
 
 1. A fake target website is open in a Chrome profile that has a login cookie.
-2. This helper opens an outbound SSE stream to the fake cloud server.
+2. This bridge opens an outbound SSE stream to the fake cloud server.
 3. A fake cloud server creates a high-level capture job.
-4. The server pushes that job to the helper over SSE.
-5. The helper finds the target tab through Chrome DevTools Protocol on localhost.
-6. The helper captures visible page text through CDP.
-7. The helper uploads the captured text back with an ordinary HTTP POST.
+4. The server pushes that job to the bridge over SSE.
+5. The bridge finds the target tab through Chrome DevTools Protocol on localhost.
+6. The bridge captures visible page text through CDP.
+7. The bridge uploads the captured text back with an ordinary HTTP POST.
 
 Safety boundaries in this POC:
 - CDP is expected at http://127.0.0.1:9222 only.
 - The cloud server is local: http://127.0.0.1:8001 only.
 - The target server is local: http://127.0.0.1:8002 only.
-- The helper accepts one high-level job type only.
-- The helper does not read cookies, localStorage, IndexedDB, passwords, or raw browser profile files.
-- The helper does not accept raw CDP commands from the cloud.
+- The bridge accepts one high-level job type only.
+- The bridge does not read cookies, localStorage, IndexedDB, passwords, or raw browser profile files.
+- The bridge does not accept raw CDP commands from the cloud.
 
 Run Chrome separately with CDP enabled, for example on Windows:
 
@@ -72,7 +72,7 @@ def log(msg: str) -> None:
 
 
 def http_json(url: str, timeout: float = 5.0) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": "nielsoln-local-helper-poc/0.2"})
+    req = urllib.request.Request(url, headers={"User-Agent": "nielsoln-local-bridge-poc/0.2"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -85,7 +85,7 @@ def post_json(url: str, obj: dict, timeout: float = 10.0) -> Any:
         method="POST",
         headers={
             "Content-Type": "application/json; charset=utf-8",
-            "User-Agent": "nielsoln-local-helper-poc/0.2",
+            "User-Agent": "nielsoln-local-bridge-poc/0.2",
         },
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -107,7 +107,7 @@ def iter_sse_events(url: str) -> Iterator[tuple[str, str]]:
         headers={
             "Accept": "text/event-stream",
             "Cache-Control": "no-cache",
-            "User-Agent": "nielsoln-local-helper-poc/0.2",
+            "User-Agent": "nielsoln-local-bridge-poc/0.2",
         },
     )
 
@@ -313,7 +313,7 @@ def find_target_tab(allowed_prefixes: str | list[str]) -> tuple[dict[str, Any] |
     """Find the open target page to capture.
 
     The cloud job only supplies an allowed URL prefix (or list of prefixes). The
-    local helper chooses a page target whose URL starts with any of those prefixes.
+    local bridge chooses a page target whose URL starts with any of those prefixes.
     If exactly one target page is open, use it. If several are open, prefer one
     whose document.visibilityState is visible; otherwise use the first matching
     page and include diagnostics in the result.
@@ -386,12 +386,12 @@ def job_allowed(job: dict[str, Any]) -> tuple[bool, str]:
         return False, f"unsupported job type {job.get('type')!r}"
 
     # The cloud may narrow the allowed URL prefix(es), but it may not broaden
-    # them outside the local helper's hard-coded safety policy.
+    # them outside the local bridge's hard-coded safety policy.
     allowed_list = _as_prefix_list(ALLOWED_TARGET_PREFIX)
     prefixes = requested_allowed_prefixes(job)
     for p in prefixes:
         if not any(p.startswith(a) for a in allowed_list):
-            return False, f"target prefix not allowed by local helper policy: {p!r}"
+            return False, f"target prefix not allowed by local bridge policy: {p!r}"
     return True, "allowed"
 
 
@@ -406,7 +406,7 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
         if inspected_tabs:
             error = (
                 f"Multiple or ambiguous target pages matched {prefixes!r}; "
-                "the helper refused to guess. Close extra matching tabs, bring exactly one matching tab to the foreground, "
+                "the bridge refused to guess. Close extra matching tabs, bring exactly one matching tab to the foreground, "
                 "or choose a narrower prefix."
             )
         else:
@@ -434,22 +434,22 @@ def handle_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def helper_allowed_prefixes() -> list[str]:
+def bridge_allowed_prefixes() -> list[str]:
     return _as_prefix_list(ALLOWED_TARGET_PREFIX)
 
 
-def post_helper_status() -> None:
+def post_bridge_status() -> None:
     payload = {
-        "helper_id": "local-helper-1",
+        "bridge_id": "local-bridge-1",
         "reported_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "allowed_job_type": ALLOWED_JOB_TYPE,
-        "allowed_target_prefixes": helper_allowed_prefixes(),
+        "allowed_target_prefixes": bridge_allowed_prefixes(),
     }
     try:
-        response = post_json(f"{CLOUD_BASE}/api/helper-status", payload)
-        log(f"reported helper capabilities: {response}")
+        response = post_json(f"{CLOUD_BASE}/api/bridge-status", payload)
+        log(f"reported bridge capabilities: {response}")
     except Exception as exc:
-        log(f"failed to report helper capabilities: {exc!r}")
+        log(f"failed to report bridge capabilities: {exc!r}")
 
 
 def handle_sse_event(event_type: str, data_text: str) -> None:
@@ -494,15 +494,15 @@ Events: http://127.0.0.1:8001/api/events
 CDP:    http://127.0.0.1:9222
 Target: http://127.0.0.1:8002/  (any open page under this origin)
 
-Cloud pushes jobs to this helper over SSE.
-This helper uploads results back with ordinary HTTP POST.
+Cloud pushes jobs to this bridge over SSE.
+This bridge uploads results back with ordinary HTTP POST.
 
 Press Ctrl+C to stop.
 """.strip())
 
     while True:
         try:
-            post_helper_status()
+            post_bridge_status()
             log("opening SSE stream")
             for event_type, data_text in iter_sse_events(f"{CLOUD_BASE}/api/events"):
                 handle_sse_event(event_type, data_text)

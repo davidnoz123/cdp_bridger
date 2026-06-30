@@ -133,11 +133,11 @@ class TargetHandler(BaseHTTPRequestHandler):
 
             self.send_html(f"{dummy_target_site_name} Account", f"""
 <h1>{dummy_target_site_name} Account</h1>
-<div class="box" id="account-data">
-  <p><strong>Private note:</strong> This text is visible only because this browser is logged in.</p>
-  <textarea id="text-editor" rows="6" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:1em;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;">Edit this text…</textarea>
-</div>
-<p>This is the page the Local Python Bridge will read through CDP, without reading cookies directly.</p>
+<!--<div class="box" id="account-data">-->
+  <!--<p><strong>Private note:</strong> This text is visible only because this browser is logged in.</p>-->
+  <p>This is a page the local Python bridge can "scrape" through CDP.</p>  
+  <textarea id="text-editor" rows="6" placeholder="Edit some text here to see it get 'scraped'…" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:1em;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;"></textarea>
+<!--</div>-->
 """)
             return
 

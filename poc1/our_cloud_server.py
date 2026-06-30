@@ -10,7 +10,7 @@ Run:
 Open:
     http://127.0.0.1:8001/
 
-The local helper opens a persistent SSE stream:
+The local bridge opens a persistent SSE stream:
     GET /api/events
 
 When the web UI creates a high-level job, the cloud server pushes it down
@@ -19,7 +19,7 @@ that SSE stream as:
     event: job
     data: {...json...}
 
-The helper still reports back with an ordinary POST:
+The bridge still reports back with an ordinary POST:
     POST /api/result
 
 This remains deliberately local and standard-library only.
@@ -45,28 +45,28 @@ JOBS: list[dict[str, Any]] = []
 RESULTS: list[dict[str, Any]] = []
 NEXT_JOB_ID = 1
 
-# Each connected helper gets one Queue. Creating a job broadcasts an SSE event
-# to every currently connected helper. ThreadingHTTPServer is fine for this POC;
+# Each connected bridge gets one Queue. Creating a job broadcasts an SSE event
+# to every currently connected bridge. ThreadingHTTPServer is fine for this POC;
 # a production version should use an async server or another scalable event layer.
 CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 CLIENTS_LOCK = threading.Lock()
 JOBS_LOCK = threading.Lock()
 
 # Separate queue list for browser EventSource connections.  Browsers receive
-# job_sent and result events; helpers receive job events.
+# job_sent and result events; bridges receive job events.
 BROWSER_CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 BROWSER_CLIENTS_LOCK = threading.Lock()
 
 dummy_remote_site_name = "Our Cloud"
 
 # The cloud server is allowed to ask for a capture from this demo target origin,
-# but it deliberately does not choose an exact page path. The local helper
+# but it deliberately does not choose an exact page path. The local bridge
 # finds the currently open target page under this origin.
 TARGET_ALLOWED_URL_PREFIX = ["http://127.0.0.1:8002/", "https://chatgpt.com/"]
 CAPTURE_JOB_TYPE = "capture_current_page_from_target_origin"
 
-HELPER_STATUS: dict[str, Any] = {}
-HELPER_STATUS_LOCK = threading.Lock()
+BRIDGE_STATUS: dict[str, Any] = {}
+BRIDGE_STATUS_LOCK = threading.Lock()
 
 
 def as_prefix_list(value: str | list[str]) -> list[str]:
@@ -117,7 +117,7 @@ def sse_format(event_type: str, data: dict[str, Any]) -> bytes:
 
 
 def broadcast(event_type: str, data: dict[str, Any]) -> int:
-    """Send an event to all connected SSE helper streams and return the count."""
+    """Send an event to all connected SSE bridge streams and return the count."""
     with CLIENTS_LOCK:
         clients = list(CLIENTS)
     for q in clients:
@@ -235,12 +235,12 @@ class CloudHandler(BaseHTTPRequestHandler):
             with JOBS_LOCK:
                 results_snapshot = list(reversed(RESULTS[-20:]))
             results_json = json.dumps(results_snapshot, indent=2, ensure_ascii=False)
-            with HELPER_STATUS_LOCK:
-                helper_status_snapshot = dict(HELPER_STATUS)
-            helper_status_json = json.dumps(helper_status_snapshot, ensure_ascii=False)
+            with BRIDGE_STATUS_LOCK:
+                bridge_status_snapshot = dict(BRIDGE_STATUS)
+            bridge_status_json = json.dumps(bridge_status_snapshot, ensure_ascii=False)
             body = f"""
-<h1>{dummy_remote_site_name} Server</h1>
-<p>This will be where our users setup their toolsheds.</p>
+<h1>{dummy_remote_site_name} Server UI</h1>
+<p>This is where our users configure software we have deployed for them.<br/>In this demo, our software is a simple "web-scrape" capture of a page the user has open in their local browser.</p>
 <div class="box">
   <form method="post" action="/create-demo-job" class="capture-form">
     <div class="capture-grid">
@@ -254,12 +254,12 @@ class CloudHandler(BaseHTTPRequestHandler):
         </select>
       </div>
       <div class="capture-status">
-        <p id="helper-prefix-status"></p>
+        <p id="bridge-prefix-status"></p>
       </div>
     </div>
   </form>
 </div>
-<!--<p><strong>Connected SSE helpers:</strong> <span class="ok">{connected}</span></p>
+<!--<p><strong>Connected SSE bridges:</strong> <span class="ok">{connected}</span></p>
 <p><strong>Pending jobs:</strong> {len(pending)}</p>-->
 <section class="box">
   <h2>Latest capture</h2>
@@ -270,7 +270,7 @@ class CloudHandler(BaseHTTPRequestHandler):
 <script>
 (function () {{
     var results = {results_json};
-    var helperStatus = {helper_status_json};
+    var bridgeStatus = {bridge_status_json};
     var targetPrefixes = {target_prefixes_json};
 
     function escapeHtml(s) {{
@@ -285,25 +285,25 @@ class CloudHandler(BaseHTTPRequestHandler):
         return document.getElementById('allowed-url-prefix').value;
     }}
 
-    function helperSupportsPrefix(prefix) {{
-        if (!helperStatus || !Array.isArray(helperStatus.allowed_target_prefixes)) {{
+    function bridgeSupportsPrefix(prefix) {{
+        if (!bridgeStatus || !Array.isArray(bridgeStatus.allowed_target_prefixes)) {{
             return null;
         }}
-        return helperStatus.allowed_target_prefixes.indexOf(prefix) !== -1;
+        return bridgeStatus.allowed_target_prefixes.indexOf(prefix) !== -1;
     }}
 
-    function renderHelperPrefixStatus() {{
-        var el = document.getElementById('helper-prefix-status');
+    function renderBridgePrefixStatus() {{
+        var el = document.getElementById('bridge-prefix-status');
         var prefix = selectedPrefix();
-        var supported = helperSupportsPrefix(prefix);
+        var supported = bridgeSupportsPrefix(prefix);
         if (supported === null) {{
-            el.textContent = 'No helper capability report received yet.';
+            el.textContent = 'No bridge capability report received yet.';
             el.style.color = '#a60';
         }} else if (supported) {{
-            el.textContent = '\u2713 Local helper supports this target.';
+            el.textContent = '\u2713 Local bridge supports this target.';
             el.style.color = '#080';
         }} else {{
-            el.textContent = '\u26a0 Warning: local helper does not report support for this target. The job will likely fail policy validation.';
+            el.textContent = '\u26a0 Warning: local bridge does not report support for this target. The job will likely fail policy validation.';
             el.style.color = '#c00';
         }}
     }}
@@ -373,8 +373,8 @@ class CloudHandler(BaseHTTPRequestHandler):
     }}
 
     render();
-    renderHelperPrefixStatus();
-    document.getElementById('allowed-url-prefix').addEventListener('change', renderHelperPrefixStatus);
+    renderBridgePrefixStatus();
+    document.getElementById('allowed-url-prefix').addEventListener('change', renderBridgePrefixStatus);
 
     var status = document.getElementById('results-status');
     var es = new EventSource('/api/browser-events');
@@ -390,9 +390,9 @@ class CloudHandler(BaseHTTPRequestHandler):
         status.style.color = '#080';
         status.textContent = 'result received ' + new Date().toLocaleTimeString();
     }});
-    es.addEventListener('helper_status', function (e) {{
-        helperStatus = JSON.parse(e.data);
-        renderHelperPrefixStatus();
+    es.addEventListener('bridge_status', function (e) {{
+        bridgeStatus = JSON.parse(e.data);
+        renderBridgePrefixStatus();
     }});
     es.onerror = function () {{
         status.style.color = '#c00';
@@ -400,15 +400,15 @@ class CloudHandler(BaseHTTPRequestHandler):
     }};
 }})();
 </script>
-<p>Helper API:</p>
+<p>Bridge API:</p>
 <ul>
-  <li><code>GET /api/events</code> &mdash; SSE stream for cloud-to-helper jobs</li>
-  <li><code>POST /api/result</code> &mdash; helper-to-cloud result upload</li>
-  <li><code>POST /api/helper-status</code> &mdash; helper capability reporting</li>
+  <li><code>GET /api/events</code> &mdash; SSE stream for cloud-to-bridge jobs</li>
+  <li><code>POST /api/result</code> &mdash; bridge-to-cloud result upload</li>
+  <li><code>POST /api/bridge-status</code> &mdash; bridge capability reporting</li>
   <li><code>GET /api/results</code> &mdash; inspect all results</li>
 </ul>
 """
-            self.send_html(f"{dummy_remote_site_name} Server", body)
+            self.send_html(f"{dummy_remote_site_name} Server UI", body)
             return
 
         if path == "/api/events":
@@ -419,7 +419,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             self.handle_browser_sse_events()
             return
 
-        # Kept as a debugging endpoint; the helper no longer uses it.
+        # Kept as a debugging endpoint; the bridge no longer uses it.
         if path == "/api/jobs":
             with JOBS_LOCK:
                 pending = [j for j in JOBS if j.get("status") == "pending"]
@@ -432,15 +432,15 @@ class CloudHandler(BaseHTTPRequestHandler):
             self.send_json({"results": results_snapshot})
             return
 
-        if path == "/api/helper-status":
+        if path == "/api/bridge-status":
             with CLIENTS_LOCK:
                 connected = len(CLIENTS)
-            with HELPER_STATUS_LOCK:
-                status_snapshot = dict(HELPER_STATUS)
+            with BRIDGE_STATUS_LOCK:
+                status_snapshot = dict(BRIDGE_STATUS)
             self.send_json({
                 "ok": True,
-                "connected_helpers": connected,
-                "helper_status": status_snapshot,
+                "connected_bridges": connected,
+                "bridge_status": status_snapshot,
             })
             return
 
@@ -460,10 +460,10 @@ class CloudHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         try:
-            self.write_sse("hello", {"ok": True, "server_time": now(), "connected_helpers": connected})
+            self.write_sse("hello", {"ok": True, "server_time": now(), "connected_bridges": connected})
 
-            # If jobs already exist when the helper connects, push them immediately.
-            # Important: jobs stay pending until a helper actually connects.
+            # If jobs already exist when the bridge connects, push them immediately.
+            # Important: jobs stay pending until a bridge actually connects.
             with JOBS_LOCK:
                 pending_jobs = [j for j in JOBS if j.get("status") == "pending"]
                 for job in pending_jobs:
@@ -475,7 +475,7 @@ class CloudHandler(BaseHTTPRequestHandler):
                 broadcast_to_browsers("job_sent", {
                     "job_id": job["job_id"],
                     "sent_at": job.get("sent_at", job.get("created_at")),
-                    "delivery": "sent_to_reconnected_helper",
+                    "delivery": "sent_to_reconnected_bridge",
                 })
 
             while True:
@@ -544,14 +544,14 @@ class CloudHandler(BaseHTTPRequestHandler):
                 job = {
                     "job_id": f"job_{NEXT_JOB_ID}",
                     "created_at": created_at,
-                    # Keep the job pending until at least one helper has really
+                    # Keep the job pending until at least one bridge has really
                     # received it. This avoids losing jobs created before the
-                    # SSE helper stream is connected.
+                    # SSE bridge stream is connected.
                     "status": "pending",
                     "result_received": False,
                     # High-level instruction only. The cloud does not send raw
                     # CDP commands and does not choose the exact tab. The local
-                    # helper finds the currently open target page under this
+                    # bridge finds the currently open target page under this
                     # allowed origin and captures that page.
                     "type": CAPTURE_JOB_TYPE,
                     "allowed_url_prefix": selected_prefix,
@@ -560,21 +560,21 @@ class CloudHandler(BaseHTTPRequestHandler):
                 JOBS.append(job)
 
             # Broadcast outside the lock to avoid holding it during I/O.
-            delivered_to_helpers = broadcast("job", job)
+            delivered_to_bridges = broadcast("job", job)
 
             with JOBS_LOCK:
-                if delivered_to_helpers:
+                if delivered_to_bridges:
                     job["status"] = "sent"
                     job["sent_at"] = now()
                     delivery = "sent"
                 else:
-                    delivery = "queued_waiting_for_helper"
+                    delivery = "queued_waiting_for_bridge"
 
             broadcast_to_browsers("job_sent", {
                 "job_id": job["job_id"],
                 "sent_at": job.get("sent_at", job["created_at"]),
                 "delivery": delivery,
-                "connected_helpers": delivered_to_helpers,
+                "connected_bridges": delivered_to_bridges,
                 "allowed_url_prefix": selected_prefix,
             })
 
@@ -644,7 +644,7 @@ class CloudHandler(BaseHTTPRequestHandler):
             })
             return
 
-        if path == "/api/helper-status":
+        if path == "/api/bridge-status":
             try:
                 status_data = self.read_json()
             except Exception as exc:
@@ -652,10 +652,10 @@ class CloudHandler(BaseHTTPRequestHandler):
                 return
             received_at = now()
             status_data["received_at"] = received_at
-            with HELPER_STATUS_LOCK:
-                HELPER_STATUS.clear()
-                HELPER_STATUS.update(status_data)
-            broadcast_to_browsers("helper_status", dict(HELPER_STATUS))
+            with BRIDGE_STATUS_LOCK:
+                BRIDGE_STATUS.clear()
+                BRIDGE_STATUS.update(status_data)
+            broadcast_to_browsers("bridge_status", dict(BRIDGE_STATUS))
             self.send_json({"ok": True, "received_at": received_at})
             return
 

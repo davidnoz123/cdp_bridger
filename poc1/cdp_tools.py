@@ -90,7 +90,7 @@ class MinimalWebSocket:
       - high-throughput production use
 
     For serious production use, you may eventually prefer the third-party
-    `websocket-client` package. For a self-contained local helper, this is
+    `websocket-client` package. For a self-contained local 'bridge', this is
     usually enough.
     """
 
