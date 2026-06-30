@@ -15,7 +15,7 @@
 | <a id="overview-row-08"></a>8 | [[link8] How this proof of concept will be deployed](#section-08-how-this-proof-of-concept-will-be-deployed) | Explains that the POC is shared as a .zip and walked through on a setup call because deployment friction is the problem the product is designed to reduce. |
 | <a id="overview-row-09"></a>9 | [[link9] How to run the demo](#section-09-how-to-run-the-demo) | Unzip the source-code folder, confirm Python and Chrome are available, open a terminal, and run python main.py or python3 main.py. |
 | <a id="overview-row-10"></a>10 | [[link10] What should happen when it starts](#section-10-what-should-happen-when-it-starts) | Show expected terminal panes and log messages: our cloud server, target server, local Python bridge, CDP browser ready, SSE connected. |
-| <a id="overview-row-11"></a>11 | [[link11] Our cloud page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, local Python bridge status, latest capture, raw JSON results. |
+| <a id="overview-row-11"></a>11 | [[link11] Our Cloud Server UI Page](#section-11-the-cloud-page) | Screenshot and explanation of http://127.0.0.1:8001/: capture button, dropdown, local Python bridge status, latest capture, raw JSON results. |
 | <a id="overview-row-12"></a>12 | [[link12] The target website](#section-12-the-target-website) | Screenshots of http://127.0.0.1:8002/, /login, and /account; explain the demo login cookie and textarea. |
 | <a id="overview-row-13"></a>13 | [[link13] Running a capture job](#section-13-running-a-capture-job) | Step-by-step: select prefix, click capture, job created, local Python bridge receives SSE job, local Python bridge captures target page, result appears. |
 | <a id="overview-row-14"></a>14 | [[link14] Understanding the result](#section-14-understanding-the-result) | Explain friendly latest capture table: Received, Job, Status, Captured URL, Title. Then explain raw JSON fields. |
@@ -333,9 +333,9 @@ At this point, the browser should also have tabs open for **Our Cloud Server** a
 
 <a id="section-11-the-cloud-page"></a>
 
-## [[back]](#overview-row-11) The cloud page
+## [[back]](#overview-row-11) Our Cloud Server UI Page
 
-The cloud page is the browser page served by **Our Cloud Server**.
+The browser page served by **Our Cloud Server**.
 
 In this proof of concept, it runs locally at:
 
@@ -393,7 +393,7 @@ Our cloud server does not log into this account directly. The local bridge reads
 
 ## [[back]](#overview-row-13) Running a capture job
 
-The capture workflow starts from the cloud page.
+The capture workflow starts from Our Cloud Server UI page.
 
 At a high level, the workflow is:
 
@@ -405,7 +405,7 @@ At a high level, the workflow is:
 6. The local Python bridge checks the job against its local policy.
 7. If the job is allowed, the bridge performs a **CDP read** against the matching browser tab.
 8. The bridge posts the result back to the server with the `job_id`.
-9. The cloud page updates to show the latest capture.
+9. The Our Cloud Server UI updates to show the latest capture.
 
 The important thing is that the server creates a high-level job, but the local bridge performs the sensitive local work.
 
@@ -427,7 +427,7 @@ That distinction is the core of the proof of concept.
 
 ## [[back]](#overview-row-14) Understanding the result
 
-After a successful capture, the cloud page updates to show the result.
+After a successful capture, Our Cloud Server UI updates to show the result.
 
 ![Cloud page after successful capture](./web3.png)
 
