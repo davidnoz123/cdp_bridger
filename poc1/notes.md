@@ -1,4 +1,34 @@
-# Share and Sell Software : A New Way to Deploy Software to Beat the Giants
+# Share and Sell Software: A New Way to Deploy Software to Beat the Giants
+
+Software deployment has changed many times.
+
+In the early personal-computer era, software was copied from disks and installed directly onto one machine. Later, software was shipped on CDs and DVDs, then downloaded from websites as installers, then managed through package managers, app stores, browser extensions, cloud services, mobile app stores, and software-as-a-service accounts.
+
+Each step reduced some kinds of friction. Users no longer expect to wait for a disk in the post. They expect to click a link, sign in, and start using software immediately.
+
+For many products, the web has become the default deployment platform. A web app can be updated instantly, used from many devices, and sold through a subscription account. This has made software easier to share and sell.
+
+But there is still a major gap.
+
+Many valuable software tasks need access to the user’s real working environment: local files, desktop applications, browser tabs, logged-in web sessions, Office documents, scanners, legacy software, private archives, and accounts on other platforms.
+
+The largest technology companies can often bridge these gaps because they control major platforms. They may own the browser, the operating system, the app store, the cloud account, the identity layer, the office suite, or the APIs that other products depend on. That position lets them create software experiences that feel instant, integrated, and trusted.
+
+Smaller software providers usually do not have that advantage. A small provider can build a useful web app, but the web app may not be able to safely reach the user’s local computer, private browser sessions, documents, or other accounts. A small provider can build a desktop tool, but then deployment becomes harder: downloads, installers, warnings, updates, permissions, support calls, and trust concerns all get in the way.
+
+This proof of concept explores a different pattern.
+
+The user runs a trusted **Local Python Bridge** on their own computer. **Our Cloud** provides the web account, user interface, job orchestration, storage, permissions, billing, and audit trail. Our Cloud can ask for work to be done, but the Local Python Bridge decides what it is willing to do locally.
+
+In this demo, Our Cloud creates a constrained capture job. The Local Python Bridge receives the job, checks its local policy, uses Chrome DevTools Protocol to read visible text from an allowed browser tab, and posts the result back to Our Cloud.
+
+The aim is not to give Our Cloud unrestricted control of the user’s browser or computer. The aim is to create a controlled deployment pattern where useful local capabilities can be shared, sold, inspected, permissioned, and managed through a web account.
+
+In short:
+
+> Web apps are easy to deploy, but limited in what they can safely reach.
+> Local tools can reach the user’s real working environment, but are harder to deploy and trust.
+> The Local Python Bridge pattern is an attempt to combine the best parts of both.
 
 
 ## Overview
@@ -397,7 +427,7 @@ The capture workflow starts from Our Cloud Server UI page.
 
 At a high level, the workflow is:
 
-1. Open **Our Cloud Server** in the browser.
+1. Open the **Our Cloud Server UI** tab in the browser.
 2. Check that the target dropdown is set to the target you want to capture from.
 3. Confirm that the page says the local Python bridge supports this target.
 4. Click **Create capture job**.
