@@ -57,7 +57,7 @@ JOBS_LOCK = threading.Lock()
 BROWSER_CLIENTS: list[queue.Queue[dict[str, Any]]] = []
 BROWSER_CLIENTS_LOCK = threading.Lock()
 
-dummy_remote_site_name = "Our Remote"
+dummy_remote_site_name = "Our Cloud"
 
 # The cloud server is allowed to ask for a capture from this demo target origin,
 # but it deliberately does not choose an exact page path. The local helper

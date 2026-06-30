@@ -6,7 +6,7 @@ Run the CDP-bridger POC stack in a single multi-pane console.
 
   - Pane 1: cloud_server.py   (fake cloud server, SSE + POST)
   - Pane 2: target_server.py  (fake target website + CDP browser launcher)
-  - Pane 3: local_helper.py   (local CDP helper, subscribes to cloud via SSE)
+  - Pane 3: local_bridge.py   (local CDP helper, subscribes to cloud via SSE)
 
 Press  q / Q  or  Ctrl+C  to stop all three processes and exit.
 Mouse wheel scrolls the pane under the cursor.
@@ -157,7 +157,7 @@ def main() -> int:
 
     panes = [
         MultiPaneConsole.PaneProcess(
-            title="Our Remote Server",
+            title="Our Cloud Server",
             command=_script("cloud_server.py"),
             max_lines=2000,
         ),
@@ -168,7 +168,7 @@ def main() -> int:
         ),
         MultiPaneConsole.PaneProcess(
             title="Local Python Bridge",
-            command=_script("local_helper.py"),
+            command=_script("local_bridge.py"),
             max_lines=2000,
         ),
     ]

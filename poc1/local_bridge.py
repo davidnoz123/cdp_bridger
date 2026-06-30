@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-local_helper.py
+local_bridge.py
 
 A deliberately tiny local helper POC using only the Python standard library.
 
@@ -34,7 +34,7 @@ Then visit:
     http://127.0.0.1:8002/account
 
 Then run:
-    python local_helper.py
+    python local_bridge.py
 """
 
 from __future__ import annotations
@@ -475,8 +475,8 @@ def handle_sse_event(event_type: str, data_text: str) -> None:
         else:
             log(f"job {job.get('job_id')} failed during processing: {e!r}")
         result = {"ok": False, "job_id": job.get("job_id"), "error": repr(e)}
-    result["local_helper_allowed_target_prefixes"] = _as_prefix_list(ALLOWED_TARGET_PREFIX)
-    result["allowed_target_prefix"] = result["local_helper_allowed_target_prefixes"]
+    result["local_bridge_allowed_target_prefixes"] = _as_prefix_list(ALLOWED_TARGET_PREFIX)
+    result["allowed_target_prefix"] = result["local_bridge_allowed_target_prefixes"]
     try:
         response = post_json(f"{CLOUD_BASE}/api/result", result)
         log(f"uploaded result for {job.get('job_id')} ok={result.get('ok')} cloud_ack={response}")
