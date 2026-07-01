@@ -488,9 +488,7 @@ In the example, this includes text from the user’s private account page:
 ```text
 User's Private Account
 
-Private note: This text is visible only because this browser is logged in.
-
-This is the page the Local Python Bridge will read through CDP, without reading cookies directly.
+This is a page the local Python bridge can "scrape" through CDP.
 ```
 
 This demonstrates that the bridge read page content from the browser tab.
@@ -502,7 +500,7 @@ The **Textarea values** section shows values captured from editable fields on th
 For example:
 
 ```text
-text-editor: Edit this text...
+text-editor: Some text I typed in
 ```
 
 This matters because useful account pages often contain textareas, form fields, editors, or other structured areas that may not be captured cleanly by plain visible text alone.
