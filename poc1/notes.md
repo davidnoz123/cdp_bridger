@@ -18,11 +18,11 @@ Smaller software providers usually do not have that advantage. A small provider 
 
 This proof of concept explores a different pattern.
 
-The user runs a trusted **Local Python Bridge** on their own computer. **Our Cloud** provides the web account, user interface, job orchestration, storage, permissions, billing, and audit trail. Our Cloud can ask for work to be done, but the Local Python Bridge decides what it is willing to do locally.
+The user runs a trusted **Local Python Bridge** on their own computer. **Our Cloud Server** provides the web account, user interface, job orchestration, storage, permissions, billing, and audit trail. Our cloud server can ask for work to be done, but the Local Python Bridge decides what it is willing to do locally.
 
-In this demo, Our Cloud creates a constrained capture job. The Local Python Bridge receives the job, checks its local policy, uses Chrome DevTools Protocol to read visible text from an allowed browser tab, and posts the result back to Our Cloud.
+In this demo, our cloud server creates a constrained capture job. The Local Python Bridge receives the job, checks its local policy, uses Chrome DevTools Protocol to read visible text from an allowed browser tab, and posts the result back to our cloud server.
 
-The aim is not to give Our Cloud unrestricted control of the user’s browser or computer. The aim is to create a controlled deployment pattern where useful local capabilities can be shared, sold, inspected, permissioned, and managed through a web account.
+The aim is not to give our cloud server unrestricted control of the user’s browser or computer. The aim is to create a controlled deployment pattern where useful local capabilities can be shared, sold, inspected, permissioned, and managed through a web account.
 
 In short:
 
@@ -124,16 +124,16 @@ flowchart TD
 
 ### Timeline: how the demo works
 
-1. The user opens **Our Cloud Server — Browser tab** on the user’s computer.
+1. The user opens **Our Cloud Server UI — Browser tab** on the user’s computer.
 2. The user clicks **Create capture job**.
-3. **Our Cloud Server — Browser tab** sends **Create capture job** to **Our Cloud Server — `our_cloud_server.py`**.
+3. **Our Cloud Server UI — Browser tab** sends **Create capture job** to **Our Cloud Server — `our_cloud_server.py`**.
 4. **Our Cloud Server — `our_cloud_server.py`** sends an **SSE job*** to **Local Python Bridge — `local_bridge.py`**.
 5. **Local Python Bridge — `local_bridge.py`** checks the job against its local policy.
 6. **Local Python Bridge — `local_bridge.py`** sends a **CDP read*** request to **Chrome CDP — `127.0.0.1:9222`**.
 7. **Chrome CDP — `127.0.0.1:9222`** performs **Read visible page** against **User’s Private Account — Browser tab**.
 8. **Internet** servers serve the private account page content, for example `127.0.0.1:8002/account (target_server.py)`, `chatgpt.com`, `claude.ai`, `gemini.google.com`, etc.
 9. **Local Python Bridge — `local_bridge.py`** sends **POST result with `job_id`** to **Our Cloud Server — `our_cloud_server.py`**.
-10. **Our Cloud Server — `our_cloud_server.py`** updates **Our Cloud Server — Browser tab** to **Show latest capture**.
+10. **Our Cloud Server — `our_cloud_server.py`** updates **Our Cloud Server UI — Browser tab** to **Show latest capture**.
 
 <a id="section-04-demo-components"></a>
 
@@ -347,7 +347,7 @@ The important success signs are:
 
 * `Our cloud server running at http://127.0.0.1:8001/`
 * `User's Private Account website running at http://127.0.0.1:8002/`
-* `Our Cloud Server tab already open`
+* `Our Cloud Server UI tab already open`
 * `User's Private Account tab already open`
 * `reported local Python bridge capabilities`
 * `opening SSE stream`
@@ -359,7 +359,7 @@ You do not need to understand every line in the terminal output. The key point i
 2. the target/private account page,
 3. the local Python bridge.
 
-At this point, the browser should also have tabs open for **Our Cloud Server** and **User’s Private Account**.
+At this point, the browser should also have tabs open for **Our Cloud Server UI** and **User’s Private Account**.
 
 <a id="section-11-the-cloud-page"></a>
 
@@ -411,9 +411,8 @@ It represents a private account page that is already open in the user’s browse
 The page contains:
 
 * a private account heading,
-* a private note,
-* a textarea value,
 * explanatory text saying that the local Python bridge will read the page through CDP.
+* a textarea value,
 
 In a real version of this pattern, the target page might be a page from a service such as ChatGPT, Claude, Gemini, or another web account. The key point is that the page is open in the user’s own browser environment.
 
